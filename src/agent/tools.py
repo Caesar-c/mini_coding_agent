@@ -2,7 +2,7 @@ import json
 import subprocess
 import re
 from typing import Dict, Any, Optional
-from path_sandbox import PathSandbox
+from .path_sandbox import PathSandbox
 
 # Create a global sandbox instance with current directory as root
 sandbox = PathSandbox(root_dir=".")

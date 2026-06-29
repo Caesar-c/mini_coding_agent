@@ -1,5 +1,5 @@
 from typing import Dict, Callable, List, Tuple, Any
-from tools import ALL_TOOLS
+from .tools import ALL_TOOLS
 
 class ToolRegistry:
     def __init__(self):
