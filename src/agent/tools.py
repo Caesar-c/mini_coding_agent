@@ -23,6 +23,9 @@ TOOL_DEFINITION = {
 
 def run(command: str, timeout: int = 30) -> str:
     """Execute a bash command and return stdout+stderr."""
+    dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"]
+    if any(d in command for d in dangerous):
+        return "Error: Dangerous command blocked"
     try:
         result = subprocess.run(
             command,
