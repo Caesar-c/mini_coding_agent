@@ -3,7 +3,8 @@
 from typing import Any
 
 import openai
-from src.llm.interface import LLMProvider, MessageWrapper
+
+from llm.interface import LLMProvider, MessageWrapper
 
 
 class OpenAILLMProvider(LLMProvider):

@@ -12,9 +12,9 @@ This module centralises provider instantiation so that consumers (e.g.
 
 from enum import Enum
 
-from src.llm.interface import LLMProvider
-from src.llm.openai_provider import OpenAILLMProvider
-from src.llm.zhipu_provider import ZhipuAILLMProvider
+from llm.interface import LLMProvider
+from llm.openai_provider import OpenAILLMProvider
+from llm.zhipu_provider import ZhipuAILLMProvider
 
 
 class LLMProviderType(Enum):
