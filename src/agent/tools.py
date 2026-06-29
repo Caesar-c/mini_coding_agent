@@ -2,7 +2,7 @@ import re
 import subprocess
 from typing import Any
 
-from src.agent.path_sandbox import PathSandbox
+from agent.path_sandbox import PathSandbox
 
 # Create a global sandbox instance with current directory as root
 sandbox = PathSandbox(root_dir=".")

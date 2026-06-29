@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from src.agent.tools import ALL_TOOLS
+from agent.tools import ALL_TOOLS
 
 
 class ToolRegistry:

@@ -15,11 +15,12 @@ class OpenAILLMProvider(LLMProvider):
     different runtime environments.
     """
 
-    def __init__(self, api_key: str = None, base_url: str = None):
+    def __init__(self, api_key: str = None, base_url: str = None, model: str = None):
         if not api_key or not base_url:
             raise ValueError("API_KEY and BASE_URL must not be NULL.")
         self.api_key = api_key
         self.base_url = base_url
+        self.model = model
         # Configure legacy module-level attributes for v0.x clients
         openai.api_key = self.api_key
         if base_url and hasattr(openai, "api_base"):
@@ -29,7 +30,6 @@ class OpenAILLMProvider(LLMProvider):
         self,
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]] | None = None,
-        model: str = "gpt-4o-mini",
         max_tokens: int = 4096,
         temperature: float = 0.7,
         stream: bool = False,
@@ -69,7 +69,7 @@ class OpenAILLMProvider(LLMProvider):
             ``stream=True`` or when the upstream message exposes it.
         """
         api_params = {
-            "model": model,
+            "model": self.model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,

@@ -18,10 +18,11 @@ class ZhipuAILLMProvider(LLMProvider):
     required at runtime when this provider is actually used.
     """
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str = None, model: str = None):
         if not api_key:
             raise ValueError("ZHIPU API KEY must not be NULL.")
         self.api_key = api_key
+        self.model = model
         self._client = None
 
     def _get_client(self):
@@ -34,7 +35,6 @@ class ZhipuAILLMProvider(LLMProvider):
         self,
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]] | None = None,
-        model: str = "glm-4.7-flash",
         thinking: bool = True,
         max_tokens: int = 65536,
         temperature: float = 0.7,
@@ -55,7 +55,7 @@ class ZhipuAILLMProvider(LLMProvider):
             :class:`MessageWrapper` containing the provider response.
         """
         api_params = {
-            "model": model,
+            "model": self.model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,

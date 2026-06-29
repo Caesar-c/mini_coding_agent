@@ -17,7 +17,6 @@ class LLMProvider(ABC):
         self,
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]] | None = None,
-        model: str = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
         **kwargs,

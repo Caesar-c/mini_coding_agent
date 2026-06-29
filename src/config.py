@@ -39,6 +39,7 @@ class Settings:
 
     # ---- Zhipu AI (智谱) ----
     ZHIPU_API_KEY: str = os.getenv("ZHIPU_API_KEY", "")
+    ZHIPU_MODEL: str = os.getenv("ZHIPU_MODEL", "")
 
     # ---- Anthropic ----
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")

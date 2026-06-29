@@ -2,9 +2,9 @@
 
 import json
 
-from src.agent.tool_registry import ToolRegistry
-from src.config import settings
-from src.llm import LLMProviderType, create_llm_provider
+from agent.tool_registry import ToolRegistry
+from config import settings
+from llm import LLMProviderType, create_llm_provider
 
 SYSTEM_PROMPT = """\
 You are a helpful coding assistant. You can execute bash commands and use various \
@@ -15,17 +15,8 @@ Think step by step, and explain what you're doing before and after each command.
 class Agent:
     def __init__(
         self,
-        model: str = None,
-        api_key: str = None,
-        base_url: str = None,
-        max_tokens: int = None,
         llm_provider_type: LLMProviderType = None,
-        temperature: float = 0.7,
     ):
-        self.model = model or settings.OPENAI_MODEL
-        self.max_tokens = max_tokens or settings.MAX_TOKENS
-        self.temperature = temperature
-
         # Create the LLM provider based on type
         self.llm_provider = create_llm_provider(
             llm_provider_type or LLMProviderType(settings.LLM_PROVIDER)
@@ -43,9 +34,6 @@ class Agent:
         response = self.llm_provider.chat_completion(
             messages=self.messages,
             tools=self.tool_registry.definitions,  # Use all registered tools
-            model=self.model,
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
         )
         return response
 

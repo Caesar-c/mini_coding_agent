@@ -44,11 +44,10 @@ def create_llm_provider(provider_type: LLMProviderType) -> LLMProvider:
         return OpenAILLMProvider(
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
+            model=settings.OPENAI_MODEL,
         )
     elif provider_type == LLMProviderType.ZHIPU_AI:
-        return ZhipuAILLMProvider(
-            api_key=settings.ZHIPU_API_KEY,
-        )
+        return ZhipuAILLMProvider(api_key=settings.ZHIPU_API_KEY, model=settings.ZHIPU_MODEL)
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
 

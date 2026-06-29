@@ -1,3 +1,3 @@
-from src.agent.loop import Agent
+from agent.loop import Agent
 
 __all__ = ["Agent"]
