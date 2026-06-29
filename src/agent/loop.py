@@ -1,14 +1,10 @@
 """Minimal agent loop with pluggable LLM provider support."""
 
 import json
-import os
 
-from dotenv import load_dotenv
 from src.agent.tool_registry import ToolRegistry
+from src.config import settings
 from src.llm import LLMProviderType, create_llm_provider
-
-# Load .env from project root
-load_dotenv()
 
 SYSTEM_PROMPT = """\
 You are a helpful coding assistant. You can execute bash commands and use various \
@@ -23,18 +19,16 @@ class Agent:
         api_key: str = None,
         base_url: str = None,
         max_tokens: int = None,
-        llm_provider_type: LLMProviderType = LLMProviderType.OPENAI,
+        llm_provider_type: LLMProviderType = None,
         temperature: float = 0.7,
     ):
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-free")
-        self.max_tokens = max_tokens or int(os.getenv("MAX_TOKENS", "4096"))
+        self.model = model or settings.OPENAI_MODEL
+        self.max_tokens = max_tokens or settings.MAX_TOKENS
         self.temperature = temperature
 
         # Create the LLM provider based on type
         self.llm_provider = create_llm_provider(
-            llm_provider_type,
-            api_key=api_key or os.getenv(f"{llm_provider_type.value.upper()}_API_KEY"),
-            base_url=base_url or os.getenv("OPENAI_BASE_URL", "https://aihubmix.com/v1"),
+            llm_provider_type or LLMProviderType(settings.LLM_PROVIDER)
         )
 
         self.messages = [
@@ -120,11 +114,8 @@ class Agent:
 
 
 def main():
-    # Default to OpenAI provider, can be changed based on environment
-    provider_type_str = os.getenv("LLM_PROVIDER", "openai").lower()
-    provider_type = LLMProviderType(provider_type_str)
-
-    agent = Agent(llm_provider_type=provider_type)
+    # Provider is resolved from settings.llm_provider (env: LLM_PROVIDER).
+    agent = Agent()
     print("🤖 Mini Coding Agent (type 'quit' to exit)\n")
 
     while True:

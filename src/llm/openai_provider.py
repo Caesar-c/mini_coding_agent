@@ -16,7 +16,9 @@ class OpenAILLMProvider(LLMProvider):
     """
 
     def __init__(self, api_key: str = None, base_url: str = None):
-        self.api_key = api_key or ""
+        if not api_key or not base_url:
+            raise ValueError("API_KEY and BASE_URL must not be NULL.")
+        self.api_key = api_key
         self.base_url = base_url
         # Configure legacy module-level attributes for v0.x clients
         openai.api_key = self.api_key
@@ -27,9 +29,12 @@ class OpenAILLMProvider(LLMProvider):
         self,
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]] | None = None,
-        model: str = "gpt-3.5-turbo",
+        model: str = "gpt-4o-mini",
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        stream: bool = False,
+        reasoning: bool = False,
+        reasoning_effort: str = "medium",
         **kwargs,
     ) -> MessageWrapper:
         """Generate a chat completion using the OpenAI API.
@@ -37,50 +42,112 @@ class OpenAILLMProvider(LLMProvider):
         Args:
             messages: List of message dictionaries with ``role`` and ``content``.
             tools: Optional list of tool definitions (OpenAI function-calling schema).
-            model: Model identifier.
+                When set, the model may reply with ``tool_calls`` instead of plain
+                text; the caller is responsible for executing the tools and
+                feeding results back.
+            model: Model identifier. Defaults to ``gpt-4o-mini``.
             max_tokens: Maximum number of tokens to generate.
             temperature: Sampling temperature.
+            stream: If True, consume the response as a stream of chunks and
+                silently accumulate ``content`` / ``reasoning_content`` /
+                ``tool_calls`` into a single :class:`MessageWrapper`.
+            reasoning: If True, enable reasoning capabilities. For OpenAI
+                o-series models (o1 / o3 / o4-mini) this sets the
+                ``reasoning_effort`` parameter; for compatible providers
+                (e.g. DeepSeek) that expose ``reasoning_content`` in chunks,
+                the reasoning text is accumulated and returned under
+                ``message_data["reasoning_content"]``.
+            reasoning_effort: Effort level for reasoning models — ``"low"``,
+                ``"medium"`` (default), or ``"high"``. Only used when
+                ``reasoning=True``.
             **kwargs: Additional parameters forwarded to the API.
 
         Returns:
-            :class:`MessageWrapper` containing the provider response.
+            :class:`MessageWrapper` containing the provider response. The
+            wrapper's data always has keys ``role``, ``content``,
+            ``tool_calls``; ``reasoning_content`` is also present when
+            ``stream=True`` or when the upstream message exposes it.
         """
         api_params = {
             "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
+            "stream": stream,
         }
 
         if tools:
-            # Modern OpenAI SDK uses ``tools``; legacy uses ``functions``.
-            # We keep both shapes for maximum compatibility.
             api_params["tools"] = tools
+
+        if reasoning:
+            # o-series reasoning models accept this top-level param.
+            api_params["reasoning_effort"] = reasoning_effort
 
         api_params.update(kwargs)
         api_params = {k: v for k, v in api_params.items() if v is not None}
 
         try:
-            if hasattr(openai, "OpenAI"):
-                # v1.x client
-                client = openai.OpenAI(api_key=self.api_key)
-                if self.base_url:
-                    client.base_url = self.base_url
-                response = client.chat.completions.create(**api_params)
-                message = response.choices[0].message
+            # v1.x client — streaming + tool_calls + reasoning all require it.
+            client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
+            response = client.chat.completions.create(**api_params)
+
+            if stream:
+                # 流式：逐 chunk 累积 content / reasoning_content / tool_calls
+                content = ""
+                reasoning_content = ""
+                tool_calls: list[dict[str, Any]] = []
+
+                for chunk in response:
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta
+
+                    # 累积正文
+                    c = getattr(delta, "content", None)
+                    if c:
+                        content += c
+
+                    # 累积深度思考内容（DeepSeek / 兼容协议）
+                    r = getattr(delta, "reasoning_content", None)
+                    if r:
+                        reasoning_content += r
+
+                    # 收集 tool_calls（分块到达，按 index 合并）
+                    tcs = getattr(delta, "tool_calls", None)
+                    if tcs:
+                        for tc in tcs:
+                            idx = getattr(tc, "index", len(tool_calls))
+                            while len(tool_calls) <= idx:
+                                tool_calls.append(
+                                    {
+                                        "id": None,
+                                        "type": "function",
+                                        "function": {"name": "", "arguments": ""},
+                                    }
+                                )
+                            if getattr(tc, "id", None):
+                                tool_calls[idx]["id"] = tc.id
+                            fn = getattr(tc, "function", None)
+                            if fn:
+                                if getattr(fn, "name", None):
+                                    tool_calls[idx]["function"]["name"] += fn.name
+                                if getattr(fn, "arguments", None):
+                                    tool_calls[idx]["function"]["arguments"] += fn.arguments
+
                 message_data = {
-                    "role": getattr(message, "role", "assistant"),
-                    "content": getattr(message, "content", None),
-                    "tool_calls": getattr(message, "tool_calls", []) or [],
+                    "role": "assistant",
+                    "content": content,
+                    "tool_calls": tool_calls,
+                    "reasoning_content": reasoning_content,
                 }
             else:
-                # v0.x legacy client
-                response = openai.ChatCompletion.create(**api_params)
+                # 非流式：一次性拿到完整 message
                 message = response.choices[0].message
                 message_data = {
                     "role": getattr(message, "role", "assistant"),
                     "content": getattr(message, "content", None),
-                    "tool_calls": getattr(message, "tool_calls", []) or [],
+                    "tool_calls": list(getattr(message, "tool_calls", None) or []),
+                    "reasoning_content": getattr(message, "reasoning_content", None) or "",
                 }
 
             return MessageWrapper(message_data)
@@ -90,5 +157,6 @@ class OpenAILLMProvider(LLMProvider):
                     "role": "assistant",
                     "content": f"Error calling OpenAI API: {e}",
                     "tool_calls": [],
+                    "reasoning_content": "",
                 }
             )

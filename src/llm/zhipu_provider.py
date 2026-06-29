@@ -19,7 +19,9 @@ class ZhipuAILLMProvider(LLMProvider):
     """
 
     def __init__(self, api_key: str = None):
-        self.api_key = api_key or ""
+        if not api_key:
+            raise ValueError("ZHIPU API KEY must not be NULL.")
+        self.api_key = api_key
         self._client = None
 
     def _get_client(self):
@@ -141,9 +143,9 @@ class ZhipuAILLMProvider(LLMProvider):
 
 
 if __name__ == "__main__":
-    import os
+    from src.config import settings
 
-    zp = ZhipuAILLMProvider(os.getenv("ZHIPU_API_KEY"))
+    zp = ZhipuAILLMProvider(settings.ZHIPU_API_KEY)
     message = [
         {"role": "user", "content": "作为一名营销专家，请为我的产品创作一个吸引人的口号"},
         {

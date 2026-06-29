@@ -44,8 +44,8 @@ class MessageWrapper:
     """Wrapper that provides a consistent message interface across providers.
 
     Different LLM providers return messages in different shapes. This wrapper
-    normalises them so downstream code can access ``content``, ``role`` and
-    ``tool_calls`` uniformly.
+    normalises them so downstream code can access ``content``, ``role``,
+    ``tool_calls`` and (optionally) ``reasoning_content`` uniformly.
     """
 
     def __init__(self, message_data: dict[str, Any]):
@@ -62,6 +62,15 @@ class MessageWrapper:
     @property
     def tool_calls(self) -> list:
         return self.data.get("tool_calls", [])
+
+    @property
+    def reasoning_content(self) -> str:
+        """Reasoning / chain-of-thought content from reasoning-capable models.
+
+        Empty string when the provider did not produce any reasoning output
+        (e.g. non-reasoning models, or ``reasoning=False``).
+        """
+        return self.data.get("reasoning_content", "") or ""
 
     def model_dump(self, **kwargs):
         """Return the underlying data dict (OpenAI-compatible interface)."""

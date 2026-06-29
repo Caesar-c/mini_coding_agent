@@ -62,6 +62,19 @@ class TestMessageWrapper(unittest.TestCase):
         wrapper = MessageWrapper({})
         self.assertIsNone(wrapper.content)
 
+    def test_reasoning_content_returned_when_present(self):
+        wrapper = MessageWrapper({"content": "answer", "reasoning_content": "let me think..."})
+        self.assertEqual(wrapper.reasoning_content, "let me think...")
+
+    def test_reasoning_content_defaults_to_empty_string(self):
+        wrapper = MessageWrapper({"content": "x"})
+        self.assertEqual(wrapper.reasoning_content, "")
+
+    def test_reasoning_content_none_becomes_empty_string(self):
+        # Some providers set the field to None explicitly when absent.
+        wrapper = MessageWrapper({"content": "x", "reasoning_content": None})
+        self.assertEqual(wrapper.reasoning_content, "")
+
 
 if __name__ == "__main__":
     unittest.main()

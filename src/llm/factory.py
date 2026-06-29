@@ -12,6 +12,7 @@ This module centralises provider instantiation so that consumers (e.g.
 
 from enum import Enum
 
+from config import settings
 from llm.interface import LLMProvider
 from llm.openai_provider import OpenAILLMProvider
 from llm.zhipu_provider import ZhipuAILLMProvider
@@ -24,13 +25,14 @@ class LLMProviderType(Enum):
     ZHIPU_AI = "zhipu_ai"
 
 
-def create_llm_provider(provider_type: LLMProviderType, **config) -> LLMProvider:
+def create_llm_provider(provider_type: LLMProviderType) -> LLMProvider:
     """Instantiate an LLM provider of the requested type.
+
+    API keys and base URLs are resolved via the process-wide :data:`settings`
+    singleton (reads from environment / ``.env``).
 
     Args:
         provider_type: The kind of provider to create.
-        **config: Keyword arguments forwarded to the provider constructor
-            (e.g. ``api_key``, ``base_url``).
 
     Returns:
         An :class:`LLMProvider` instance ready for use.
@@ -40,12 +42,12 @@ def create_llm_provider(provider_type: LLMProviderType, **config) -> LLMProvider
     """
     if provider_type == LLMProviderType.OPENAI:
         return OpenAILLMProvider(
-            api_key=config.get("api_key"),
-            base_url=config.get("base_url"),
+            api_key=settings.OPENAI_API_KEY,
+            base_url=settings.OPENAI_BASE_URL,
         )
     elif provider_type == LLMProviderType.ZHIPU_AI:
         return ZhipuAILLMProvider(
-            api_key=config.get("api_key"),
+            api_key=settings.ZHIPU_API_KEY,
         )
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
