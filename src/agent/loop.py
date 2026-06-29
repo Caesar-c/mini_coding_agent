@@ -6,8 +6,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from .tool_registry import ToolRegistry
-from .llm_interface import MessageWrapper
-from .llm_factory import create_llm_provider, LLMProviderType
+from ..llm import MessageWrapper, create_llm_provider, LLMProviderType
 
 # Load .env from project root
 load_dotenv()
