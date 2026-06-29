@@ -11,15 +11,15 @@ This module centralises provider instantiation so that consumers (e.g.
 """
 
 from enum import Enum
-from typing import Dict, Optional
 
-from .interface import LLMProvider
-from .openai_provider import OpenAILLMProvider
-from .zhipu_provider import ZhipuAILLMProvider
+from src.llm.interface import LLMProvider
+from src.llm.openai_provider import OpenAILLMProvider
+from src.llm.zhipu_provider import ZhipuAILLMProvider
 
 
 class LLMProviderType(Enum):
     """Enumeration of supported LLM provider backends."""
+
     OPENAI = "openai"
     ZHIPU_AI = "zhipu_ai"
 
@@ -40,17 +40,17 @@ def create_llm_provider(provider_type: LLMProviderType, **config) -> LLMProvider
     """
     if provider_type == LLMProviderType.OPENAI:
         return OpenAILLMProvider(
-            api_key=config.get('api_key'),
-            base_url=config.get('base_url'),
+            api_key=config.get("api_key"),
+            base_url=config.get("base_url"),
         )
     elif provider_type == LLMProviderType.ZHIPU_AI:
         return ZhipuAILLMProvider(
-            api_key=config.get('api_key'),
+            api_key=config.get("api_key"),
         )
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")
 
 
-def get_available_providers() -> Dict[str, LLMProviderType]:
+def get_available_providers() -> dict[str, LLMProviderType]:
     """Return a mapping of provider name -> :class:`LLMProviderType`."""
     return {provider.value: provider for provider in LLMProviderType}

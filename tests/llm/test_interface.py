@@ -1,13 +1,8 @@
-"""Tests for :mod:`llm.interface`."""
+"""Tests for :mod:`src.llm.interface`."""
 
 import unittest
-import sys
-import os
 
-# Ensure the ``src`` directory is importable when tests are run directly.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-from llm.interface import LLMProvider, MessageWrapper
+from src.llm.interface import LLMProvider, MessageWrapper
 
 
 class TestLLMProviderAbstract(unittest.TestCase):
@@ -27,39 +22,39 @@ class TestLLMProviderAbstract(unittest.TestCase):
     def test_concrete_subclass_with_implementation(self):
         class Complete(LLMProvider):
             def chat_completion(self, messages, **kwargs):
-                return MessageWrapper({'role': 'assistant', 'content': 'ok'})
+                return MessageWrapper({"role": "assistant", "content": "ok"})
 
         provider = Complete()
-        result = provider.chat_completion([{'role': 'user', 'content': 'hi'}])
-        self.assertEqual(result.content, 'ok')
+        result = provider.chat_completion([{"role": "user", "content": "hi"}])
+        self.assertEqual(result.content, "ok")
 
 
 class TestMessageWrapper(unittest.TestCase):
     """Verify :class:`MessageWrapper` exposes a uniform interface."""
 
     def test_content_property(self):
-        wrapper = MessageWrapper({'content': 'hello', 'role': 'assistant'})
-        self.assertEqual(wrapper.content, 'hello')
+        wrapper = MessageWrapper({"content": "hello", "role": "assistant"})
+        self.assertEqual(wrapper.content, "hello")
 
     def test_role_property(self):
-        wrapper = MessageWrapper({'role': 'user', 'content': 'hi'})
-        self.assertEqual(wrapper.role, 'user')
+        wrapper = MessageWrapper({"role": "user", "content": "hi"})
+        self.assertEqual(wrapper.role, "user")
 
     def test_role_defaults_to_assistant(self):
-        wrapper = MessageWrapper({'content': 'x'})
-        self.assertEqual(wrapper.role, 'assistant')
+        wrapper = MessageWrapper({"content": "x"})
+        self.assertEqual(wrapper.role, "assistant")
 
     def test_tool_calls_defaults_to_empty(self):
-        wrapper = MessageWrapper({'content': 'x'})
+        wrapper = MessageWrapper({"content": "x"})
         self.assertEqual(wrapper.tool_calls, [])
 
     def test_tool_calls_returned_when_present(self):
-        calls = [{'id': '1', 'function': {'name': 'foo', 'arguments': '{}'}}]
-        wrapper = MessageWrapper({'content': 'x', 'tool_calls': calls})
+        calls = [{"id": "1", "function": {"name": "foo", "arguments": "{}"}}]
+        wrapper = MessageWrapper({"content": "x", "tool_calls": calls})
         self.assertEqual(wrapper.tool_calls, calls)
 
     def test_model_dump_returns_underlying_data(self):
-        data = {'role': 'assistant', 'content': 'ok'}
+        data = {"role": "assistant", "content": "ok"}
         wrapper = MessageWrapper(data)
         self.assertEqual(wrapper.model_dump(), data)
 
@@ -68,5 +63,5 @@ class TestMessageWrapper(unittest.TestCase):
         self.assertIsNone(wrapper.content)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -2,11 +2,10 @@
 
 import json
 import os
-from typing import Optional
 
 from dotenv import load_dotenv
-from .tool_registry import ToolRegistry
-from ..llm import MessageWrapper, create_llm_provider, LLMProviderType
+from src.agent.tool_registry import ToolRegistry
+from src.llm import LLMProviderType, create_llm_provider
 
 # Load .env from project root
 load_dotenv()
@@ -25,7 +24,7 @@ class Agent:
         base_url: str = None,
         max_tokens: int = None,
         llm_provider_type: LLMProviderType = LLMProviderType.OPENAI,
-        temperature: float = 0.7
+        temperature: float = 0.7,
     ):
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-free")
         self.max_tokens = max_tokens or int(os.getenv("MAX_TOKENS", "4096"))
@@ -35,7 +34,7 @@ class Agent:
         self.llm_provider = create_llm_provider(
             llm_provider_type,
             api_key=api_key or os.getenv(f"{llm_provider_type.value.upper()}_API_KEY"),
-            base_url=base_url or os.getenv("OPENAI_BASE_URL", "https://aihubmix.com/v1")
+            base_url=base_url or os.getenv("OPENAI_BASE_URL", "https://aihubmix.com/v1"),
         )
 
         self.messages = [
@@ -52,15 +51,14 @@ class Agent:
             tools=self.tool_registry.definitions,  # Use all registered tools
             model=self.model,
             max_tokens=self.max_tokens,
-            temperature=self.temperature
+            temperature=self.temperature,
         )
         return response
 
     def _handle_tool_call(self, tool_call):
         """Execute the appropriate tool and return a tool result message in OpenAI format."""
-        import json
         # Handle both OpenAI-style tool calls and our wrapper
-        if hasattr(tool_call, 'function'):
+        if hasattr(tool_call, "function"):
             # OpenAI style
             args = json.loads(tool_call.function.arguments)
             tool_name = tool_call.function.name
@@ -87,30 +85,30 @@ class Agent:
         while True:
             message = self._call_llm()
             # Append assistant message to history if it has content
-            if hasattr(message, 'content') and message.content:
+            if hasattr(message, "content") and message.content:
                 # Different providers might have different message formats
-                if hasattr(message, 'model_dump'):
+                if hasattr(message, "model_dump"):
                     self.messages.append(message.model_dump(exclude_unset=True))
                 else:
                     # Handle our wrapper
                     msg_dict = {
-                        'role': getattr(message, 'role', 'assistant'),
-                        'content': message.content
+                        "role": getattr(message, "role", "assistant"),
+                        "content": message.content,
                     }
-                    if hasattr(message, 'tool_calls') and message.tool_calls:
-                        msg_dict['tool_calls'] = message.tool_calls
+                    if hasattr(message, "tool_calls") and message.tool_calls:
+                        msg_dict["tool_calls"] = message.tool_calls
                     self.messages.append(msg_dict)
 
             # Check if the message has tool calls - handle differently based on provider
-            if hasattr(message, 'tool_calls'):
+            if hasattr(message, "tool_calls"):
                 tool_calls = message.tool_calls
             else:
                 # For our wrapper, access the data directly
-                tool_calls = getattr(message, 'data', {}).get('tool_calls', [])
+                tool_calls = getattr(message, "data", {}).get("tool_calls", [])
 
             if not tool_calls:
                 # No tool calls — return text
-                content = getattr(message, 'content', '')
+                content = getattr(message, "content", "")
                 if content:
                     return content
                 return ""

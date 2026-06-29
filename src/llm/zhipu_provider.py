@@ -4,8 +4,9 @@ Uses the official ``zhipuai`` SDK when available, falling back to a graceful
 error if the SDK is not installed.
 """
 
-from typing import List, Dict, Any, Optional
-from .interface import LLMProvider, MessageWrapper
+from typing import Any
+
+from src.llm.interface import LLMProvider, MessageWrapper
 
 
 class ZhipuAILLMProvider(LLMProvider):
@@ -32,13 +33,15 @@ class ZhipuAILLMProvider(LLMProvider):
             self._client = zhipuai.ZhipuAI(api_key=self.api_key)
         return self._client
 
-    def chat_completion(self,
-                       messages: List[Dict[str, str]],
-                       tools: Optional[List[Dict[str, Any]]] = None,
-                       model: str = "glm-4",
-                       max_tokens: int = 8192,
-                       temperature: float = 0.95,
-                       **kwargs) -> MessageWrapper:
+    def chat_completion(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str = "glm-4",
+        max_tokens: int = 8192,
+        temperature: float = 0.95,
+        **kwargs,
+    ) -> MessageWrapper:
         """Generate a chat completion using the Zhipu AI API.
 
         Args:
@@ -71,14 +74,16 @@ class ZhipuAILLMProvider(LLMProvider):
 
             message = response.choices[0].message
             message_data = {
-                'role': getattr(message, 'role', 'assistant'),
-                'content': getattr(message, 'content', ''),
-                'tool_calls': list(getattr(message, 'tool_calls', None) or []),
+                "role": getattr(message, "role", "assistant"),
+                "content": getattr(message, "content", ""),
+                "tool_calls": list(getattr(message, "tool_calls", None) or []),
             }
             return MessageWrapper(message_data)
         except Exception as e:
-            return MessageWrapper({
-                'role': 'assistant',
-                'content': f"Error calling Zhipu AI API: {e}",
-                'tool_calls': [],
-            })
+            return MessageWrapper(
+                {
+                    "role": "assistant",
+                    "content": f"Error calling Zhipu AI API: {e}",
+                    "tool_calls": [],
+                }
+            )

@@ -1,10 +1,12 @@
-from typing import Dict, Callable, List, Tuple, Any
-from .tools import ALL_TOOLS
+from collections.abc import Callable
+
+from src.agent.tools import ALL_TOOLS
+
 
 class ToolRegistry:
     def __init__(self):
-        self._tools: Dict[str, dict] = {}
-        self._handlers: Dict[str, Callable] = {}
+        self._tools: dict[str, dict] = {}
+        self._handlers: dict[str, Callable] = {}
 
         # Register all existing tools
         for definition, handler in ALL_TOOLS:
@@ -17,7 +19,7 @@ class ToolRegistry:
         self._handlers[name] = handler
 
     @property
-    def definitions(self) -> List[dict]:
+    def definitions(self) -> list[dict]:
         """Return all tool definitions for the LLM."""
         return list(self._tools.values())
 
@@ -30,6 +32,6 @@ class ToolRegistry:
         except Exception as e:
             return f"Error executing tool {tool_name}: {str(e)}"
 
-    def get_tool_names(self) -> List[str]:
+    def get_tool_names(self) -> list[str]:
         """Get a list of all registered tool names."""
         return list(self._tools.keys())

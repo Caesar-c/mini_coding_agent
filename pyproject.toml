@@ -1,0 +1,26 @@
+[tool.ruff]
+# Ruff configuration for mini_coding_agent
+line-length = 100
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort (import sorting)
+    "TID",    # flake8-tidy-imports (TID252 bans relative imports)
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear (common bug patterns)
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# Ban ALL relative imports. Every `from .X` or `from ..X` is a lint error.
+ban-relative-imports = "all"
+
+[tool.ruff.lint.isort]
+known-first-party = ["agent", "llm"]

@@ -1,14 +1,10 @@
-"""Tests for :mod:`llm.openai_provider`."""
+"""Tests for :mod:`src.llm.openai_provider`."""
 
 import unittest
-import sys
-import os
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-from llm.openai_provider import OpenAILLMProvider
-from llm.interface import MessageWrapper, LLMProvider
+from src.llm.interface import LLMProvider, MessageWrapper
+from src.llm.openai_provider import OpenAILLMProvider
 
 
 class TestOpenAILLMProvider(unittest.TestCase):
@@ -26,7 +22,7 @@ class TestOpenAILLMProvider(unittest.TestCase):
         provider = OpenAILLMProvider(api_key="k", base_url="https://example.com/v1")
         self.assertEqual(provider.base_url, "https://example.com/v1")
 
-    @patch('llm.openai_provider.openai')
+    @patch("src.llm.openai_provider.openai")
     def test_chat_completion_modern_api(self, mock_openai):
         """When ``openai.OpenAI`` exists, it should be used."""
         mock_openai.OpenAI = MagicMock()
@@ -34,8 +30,8 @@ class TestOpenAILLMProvider(unittest.TestCase):
         mock_openai.OpenAI.return_value = mock_client
 
         mock_message = MagicMock()
-        mock_message.role = 'assistant'
-        mock_message.content = 'hi there'
+        mock_message.role = "assistant"
+        mock_message.content = "hi there"
         mock_message.tool_calls = []
 
         mock_choice = MagicMock()
@@ -46,22 +42,22 @@ class TestOpenAILLMProvider(unittest.TestCase):
 
         provider = OpenAILLMProvider(api_key="key")
         result = provider.chat_completion(
-            messages=[{'role': 'user', 'content': 'hello'}],
-            model='gpt-4',
+            messages=[{"role": "user", "content": "hello"}],
+            model="gpt-4",
         )
 
         self.assertIsInstance(result, MessageWrapper)
-        self.assertEqual(result.content, 'hi there')
-        self.assertEqual(result.role, 'assistant')
+        self.assertEqual(result.content, "hi there")
+        self.assertEqual(result.role, "assistant")
 
-    @patch('llm.openai_provider.openai')
+    @patch("src.llm.openai_provider.openai")
     def test_chat_completion_error_returns_wrapper(self, mock_openai):
         """When the API call raises, an error MessageWrapper is returned."""
         mock_openai.OpenAI = MagicMock(side_effect=Exception("network error"))
 
         provider = OpenAILLMProvider(api_key="key")
         result = provider.chat_completion(
-            messages=[{'role': 'user', 'content': 'hello'}],
+            messages=[{"role": "user", "content": "hello"}],
         )
 
         self.assertIsInstance(result, MessageWrapper)
@@ -69,5 +65,5 @@ class TestOpenAILLMProvider(unittest.TestCase):
         self.assertEqual(result.tool_calls, [])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

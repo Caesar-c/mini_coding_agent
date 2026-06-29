@@ -1,8 +1,9 @@
 """OpenAI LLM Provider Implementation."""
 
-from typing import List, Dict, Any, Optional
-from .interface import LLMProvider, MessageWrapper
+from typing import Any
+
 import openai
+from src.llm.interface import LLMProvider, MessageWrapper
 
 
 class OpenAILLMProvider(LLMProvider):
@@ -18,16 +19,18 @@ class OpenAILLMProvider(LLMProvider):
         self.base_url = base_url
         # Configure legacy module-level attributes for v0.x clients
         openai.api_key = self.api_key
-        if base_url and hasattr(openai, 'api_base'):
+        if base_url and hasattr(openai, "api_base"):
             openai.api_base = base_url
 
-    def chat_completion(self,
-                       messages: List[Dict[str, str]],
-                       tools: Optional[List[Dict[str, Any]]] = None,
-                       model: str = "gpt-3.5-turbo",
-                       max_tokens: int = 4096,
-                       temperature: float = 0.7,
-                       **kwargs) -> MessageWrapper:
+    def chat_completion(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str = "gpt-3.5-turbo",
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        **kwargs,
+    ) -> MessageWrapper:
         """Generate a chat completion using the OpenAI API.
 
         Args:
@@ -57,7 +60,7 @@ class OpenAILLMProvider(LLMProvider):
         api_params = {k: v for k, v in api_params.items() if v is not None}
 
         try:
-            if hasattr(openai, 'OpenAI'):
+            if hasattr(openai, "OpenAI"):
                 # v1.x client
                 client = openai.OpenAI(api_key=self.api_key)
                 if self.base_url:
@@ -65,24 +68,26 @@ class OpenAILLMProvider(LLMProvider):
                 response = client.chat.completions.create(**api_params)
                 message = response.choices[0].message
                 message_data = {
-                    'role': getattr(message, 'role', 'assistant'),
-                    'content': getattr(message, 'content', None),
-                    'tool_calls': getattr(message, 'tool_calls', []) or [],
+                    "role": getattr(message, "role", "assistant"),
+                    "content": getattr(message, "content", None),
+                    "tool_calls": getattr(message, "tool_calls", []) or [],
                 }
             else:
                 # v0.x legacy client
                 response = openai.ChatCompletion.create(**api_params)
                 message = response.choices[0].message
                 message_data = {
-                    'role': getattr(message, 'role', 'assistant'),
-                    'content': getattr(message, 'content', None),
-                    'tool_calls': getattr(message, 'tool_calls', []) or [],
+                    "role": getattr(message, "role", "assistant"),
+                    "content": getattr(message, "content", None),
+                    "tool_calls": getattr(message, "tool_calls", []) or [],
                 }
 
             return MessageWrapper(message_data)
         except Exception as e:
-            return MessageWrapper({
-                'role': 'assistant',
-                'content': f"Error calling OpenAI API: {e}",
-                'tool_calls': [],
-            })
+            return MessageWrapper(
+                {
+                    "role": "assistant",
+                    "content": f"Error calling OpenAI API: {e}",
+                    "tool_calls": [],
+                }
+            )

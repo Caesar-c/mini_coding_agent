@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-from typing import Union, List
+
 
 class PathSandbox:
     def __init__(self, root_dir: str = "."):
@@ -16,7 +15,7 @@ class PathSandbox:
             raise ValueError(
                 f"Path traversal detected: '{requested_path}' "
                 f"would escape sandbox root {self.root}"
-            )
+            ) from None
         return full_path
 
     def read_file(self, path: str) -> str:
@@ -31,7 +30,7 @@ class PathSandbox:
         resolved.parent.mkdir(parents=True, exist_ok=True)
         resolved.write_text(content, encoding="utf-8")
 
-    def list_directory(self, path: str = ".", recursive: bool = False) -> List[str]:
+    def list_directory(self, path: str = ".", recursive: bool = False) -> list[str]:
         resolved = self.validate(path)
         if not resolved.is_dir():
             raise NotADirectoryError(f"Not a directory: {resolved}")

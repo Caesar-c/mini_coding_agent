@@ -17,7 +17,10 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/.venv/bin/python",
-            "cwd": "${workspaceFolder}/src"
+            "cwd": "${workspaceFolder}/src",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
         }
     ]
 }

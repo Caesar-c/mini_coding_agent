@@ -1,14 +1,11 @@
-"""Tests for :mod:`llm.zhipu_provider`."""
+"""Tests for :mod:`src.llm.zhipu_provider`."""
 
-import unittest
 import sys
-import os
+import unittest
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-from llm.zhipu_provider import ZhipuAILLMProvider
-from llm.interface import MessageWrapper, LLMProvider
+from src.llm.interface import LLMProvider, MessageWrapper
+from src.llm.zhipu_provider import ZhipuAILLMProvider
 
 
 class TestZhipuAILLMProvider(unittest.TestCase):
@@ -25,19 +22,19 @@ class TestZhipuAILLMProvider(unittest.TestCase):
     def test_lazy_import_missing_sdk_raises(self):
         """If zhipuai is not installed, a clear ImportError is raised."""
         provider = ZhipuAILLMProvider(api_key="key")
-        with patch.dict(sys.modules, {'zhipuai': None}):
+        with patch.dict(sys.modules, {"zhipuai": None}):
             # Force re-import attempt
             with self.assertRaises(ImportError):
                 provider._get_client()
 
-    @patch('llm.zhipu_provider.ZhipuAILLMProvider._get_client')
+    @patch("src.llm.zhipu_provider.ZhipuAILLMProvider._get_client")
     def test_chat_completion_success(self, mock_get_client):
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
 
         mock_message = MagicMock()
-        mock_message.role = 'assistant'
-        mock_message.content = '你好'
+        mock_message.role = "assistant"
+        mock_message.content = "你好"
         mock_message.tool_calls = []
 
         mock_choice = MagicMock()
@@ -48,21 +45,21 @@ class TestZhipuAILLMProvider(unittest.TestCase):
 
         provider = ZhipuAILLMProvider(api_key="key")
         result = provider.chat_completion(
-            messages=[{'role': 'user', 'content': '你好'}],
-            model='glm-4',
+            messages=[{"role": "user", "content": "你好"}],
+            model="glm-4",
         )
 
         self.assertIsInstance(result, MessageWrapper)
-        self.assertEqual(result.content, '你好')
-        self.assertEqual(result.role, 'assistant')
+        self.assertEqual(result.content, "你好")
+        self.assertEqual(result.role, "assistant")
 
-    @patch('llm.zhipu_provider.ZhipuAILLMProvider._get_client')
+    @patch("src.llm.zhipu_provider.ZhipuAILLMProvider._get_client")
     def test_chat_completion_error_returns_wrapper(self, mock_get_client):
         mock_get_client.side_effect = Exception("auth failed")
 
         provider = ZhipuAILLMProvider(api_key="key")
         result = provider.chat_completion(
-            messages=[{'role': 'user', 'content': 'hello'}],
+            messages=[{"role": "user", "content": "hello"}],
         )
 
         self.assertIsInstance(result, MessageWrapper)
@@ -70,5 +67,5 @@ class TestZhipuAILLMProvider(unittest.TestCase):
         self.assertEqual(result.tool_calls, [])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

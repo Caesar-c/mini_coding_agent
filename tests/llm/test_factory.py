@@ -1,14 +1,10 @@
-"""Tests for :mod:`llm.factory`."""
+"""Tests for :mod:`src.llm.factory`."""
 
 import unittest
-import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-from llm.factory import LLMProviderType, create_llm_provider, get_available_providers
-from llm.interface import LLMProvider
-from llm.openai_provider import OpenAILLMProvider
+from src.llm.factory import LLMProviderType, create_llm_provider, get_available_providers
+from src.llm.interface import LLMProvider
+from src.llm.openai_provider import OpenAILLMProvider
 
 
 class TestLLMProviderType(unittest.TestCase):
@@ -36,7 +32,8 @@ class TestCreateLLMProvider(unittest.TestCase):
     def test_create_zhipu_provider(self):
         # Zhipu provider lazy-imports the SDK, so instantiation succeeds
         # even without zhipuai installed.
-        from llm.zhipu_provider import ZhipuAILLMProvider
+        from src.llm.zhipu_provider import ZhipuAILLMProvider
+
         provider = create_llm_provider(LLMProviderType.ZHIPU_AI, api_key="k")
         self.assertIsInstance(provider, LLMProvider)
         self.assertIsInstance(provider, ZhipuAILLMProvider)
@@ -60,5 +57,5 @@ class TestGetAvailableProviders(unittest.TestCase):
         self.assertEqual(providers["zhipu_ai"], LLMProviderType.ZHIPU_AI)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

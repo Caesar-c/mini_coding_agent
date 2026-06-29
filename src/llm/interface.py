@@ -1,7 +1,7 @@
 """Abstract interface for LLM providers to enable pluggable LLM backends."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 
 class LLMProvider(ABC):
@@ -13,13 +13,15 @@ class LLMProvider(ABC):
     """
 
     @abstractmethod
-    def chat_completion(self,
-                       messages: List[Dict[str, str]],
-                       tools: Optional[List[Dict[str, Any]]] = None,
-                       model: str = None,
-                       max_tokens: int = 4096,
-                       temperature: float = 0.7,
-                       **kwargs) -> Any:
+    def chat_completion(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        **kwargs,
+    ) -> Any:
         """Generate a chat completion.
 
         Args:
@@ -46,20 +48,20 @@ class MessageWrapper:
     ``tool_calls`` uniformly.
     """
 
-    def __init__(self, message_data: Dict[str, Any]):
+    def __init__(self, message_data: dict[str, Any]):
         self.data = message_data
 
     @property
-    def content(self) -> Optional[str]:
-        return self.data.get('content', None)
+    def content(self) -> str | None:
+        return self.data.get("content", None)
 
     @property
     def role(self) -> str:
-        return self.data.get('role', 'assistant')
+        return self.data.get("role", "assistant")
 
     @property
     def tool_calls(self) -> list:
-        return self.data.get('tool_calls', [])
+        return self.data.get("tool_calls", [])
 
     def model_dump(self, **kwargs):
         """Return the underlying data dict (OpenAI-compatible interface)."""
