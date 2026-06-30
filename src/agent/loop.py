@@ -4,12 +4,23 @@ import json
 
 from agent.tool_registry import ToolRegistry
 from config import settings
+from context_manager.context import ContextCompactor
+from context_manager.tracker import (
+    UPDATE_PLAN_TOOL_DEFINITION,
+    ProgressTracker,
+    run_update_plan,
+)
 from llm import LLMProviderType, create_llm_provider
 
 SYSTEM_PROMPT = """\
 You are a helpful coding assistant. You can execute bash commands and use various \
 file operation tools to accomplish tasks. Use the appropriate tools for file operations. \
-Think step by step, and explain what you're doing before and after each command."""
+Think step by step, and explain what you're doing before and after each command.
+
+For multi-step tasks, use the update_plan tool to create a plan with numbered steps. \
+Update the plan as you complete each step by marking it "done" and moving the next \
+step to "in_progress". If the user corrects your plan or asks you to change steps, \
+call update_plan with the revised step list. This keeps you on track for long tasks."""
 
 
 class Agent:
@@ -29,6 +40,19 @@ class Agent:
         # Initialize the tool registry
         self.tool_registry = ToolRegistry()
 
+        # Progress tracking and context management
+        self.progress_tracker = ProgressTracker()
+        self.context_compactor = ContextCompactor(
+            max_messages=settings.CONTEXT_MAX_MESSAGES,
+            keep_recent=settings.CONTEXT_KEEP_RECENT,
+        )
+
+        # Register the update_plan tool with a closure bound to this agent's tracker
+        self.tool_registry.register(
+            UPDATE_PLAN_TOOL_DEFINITION,
+            lambda args: run_update_plan(args, self.progress_tracker),
+        )
+
     def _call_llm(self):
         """Call LLM provider API and return the assistant message."""
         response = self.llm_provider.chat_completion(
@@ -36,6 +60,23 @@ class Agent:
             tools=self.tool_registry.definitions,  # Use all registered tools
         )
         return response
+
+    def _inject_progress(self):
+        """Remove old progress summary and inject current one as a system message."""
+        # Remove any previously injected progress messages
+        self.messages = [
+            m
+            for m in self.messages
+            if not (
+                m.get("role") == "system"
+                and isinstance(m.get("content"), str)
+                and m["content"].startswith("[TASK PROGRESS]")
+            )
+        ]
+        # Inject fresh progress if a plan exists
+        if self.progress_tracker.has_plan:
+            summary = self.progress_tracker.format_summary()
+            self.messages.insert(1, {"role": "system", "content": summary})
 
     def _handle_tool_call(self, tool_call):
         """Execute the appropriate tool and return a tool result message in OpenAI format."""
@@ -52,6 +93,11 @@ class Agent:
         # Use the registry to execute the appropriate tool
         output = self.tool_registry.execute(tool_name, args)
 
+        # --- Tool result truncation ---
+        max_output = settings.MAX_TOOL_OUTPUT
+        if len(output) > max_output:
+            output = output[:max_output] + f"\n... [truncated, {len(output)} chars total]"
+
         print(f"\n🔧 Running {tool_name}: {str(args)[:100]}{'...' if len(str(args)) > 100 else ''}")
         print(f"📤 Output: {output[:500]}{'...' if len(output) > 500 else ''}")
         return {
@@ -65,6 +111,13 @@ class Agent:
         self.messages.append({"role": "user", "content": user_input})
 
         while True:
+            # --- Progress reinforcement ---
+            self._inject_progress()
+
+            # --- Context compaction ---
+            if self.context_compactor.should_compact(self.messages):
+                self.messages = self.context_compactor.compact(self.messages)
+
             message = self._call_llm()
             # Append assistant message to history if it has content
             if hasattr(message, "content") and message.content:
