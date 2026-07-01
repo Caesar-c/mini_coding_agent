@@ -1,3 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mini-coding-agent"
+version = "0.1.0"
+description = "A minimal coding agent with pluggable LLM backends"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.0",
+    "python-dotenv>=1.0",
+    "typer>=0.12",
+    "rich>=13.0",
+    "prompt-toolkit>=3.0",
+]
+
+[project.optional-dependencies]
+zhipu = ["zhipuai>=2.0"]
+dev = ["ruff", "pre-commit"]
+
+[project.scripts]
+mini-agent = "cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/cli",
+    "src/agent",
+    "src/llm",
+    "src/context_manager",
+    "src/session",
+    "src/config.py",
+]
+
 [tool.ruff]
 # Ruff configuration for mini_coding_agent
 line-length = 100
@@ -23,4 +57,4 @@ ignore = [
 ban-relative-imports = "all"
 
 [tool.ruff.lint.isort]
-known-first-party = ["agent", "llm"]
+known-first-party = ["agent", "llm", "cli", "config", "context_manager", "session"]

@@ -74,3 +74,26 @@ class MessageWrapper:
     def model_dump(self, **kwargs):
         """Return the underlying data dict (OpenAI-compatible interface)."""
         return self.data
+
+
+class AsyncLLMProvider(ABC):
+    """Abstract base class for async LLM providers.
+
+    Mirror of :class:`LLMProvider` with an async :meth:`chat_completion`.
+    """
+
+    @abstractmethod
+    async def chat_completion(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        **kwargs,
+    ) -> Any:
+        """Generate a chat completion asynchronously.
+
+        Same parameters as :meth:`LLMProvider.chat_completion`.
+        Returns a :class:`MessageWrapper` or compatible response object.
+        """
+        pass

@@ -49,6 +49,9 @@ class Settings:
     # ---- Agent behaviour ----
     MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "4096"))
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openai").lower()
+    MAX_TOOL_OUTPUT: int = int(os.getenv("MAX_TOOL_OUTPUT", "8000"))
+    CONTEXT_MAX_MESSAGES: int = int(os.getenv("CONTEXT_MAX_MESSAGES", "40"))
+    CONTEXT_KEEP_RECENT: int = int(os.getenv("CONTEXT_KEEP_RECENT", "12"))
 
     # ---- Sandbox ----
     SANDBOX_ROOT: str = os.getenv("SANDBOX_ROOT", ".")
