@@ -12,6 +12,9 @@ from context_manager.tracker import (
 )
 from llm import LLMProviderType, create_llm_provider
 
+# Sentinel used by tc_attr to distinguish "key missing" from "key present but None".
+_MISSING = object()
+
 SYSTEM_PROMPT = """\
 You are a helpful coding assistant. You can execute bash commands and use various \
 file operation tools to accomplish tasks. Use the appropriate tools for file operations. \
@@ -21,6 +24,25 @@ For multi-step tasks, use the update_plan tool to create a plan with numbered st
 Update the plan as you complete each step by marking it "done" and moving the next \
 step to "in_progress". If the user corrects your plan or asks you to change steps, \
 call update_plan with the revised step list. This keeps you on track for long tasks."""
+
+
+def tc_attr(tool_call, attr: str, default=None):
+    """Access a tool-call field whether *tool_call* is an object or a dict.
+
+    Supports nested paths like ``"function.name"`` / ``"function.arguments"``
+    via dot notation.  Uses an internal sentinel so that a key explicitly set
+    to ``None`` still returns *default* instead of ``None``.
+    """
+    parts = attr.split(".")
+    obj = tool_call
+    for p in parts:
+        if isinstance(obj, dict):
+            obj = obj.get(p, _MISSING)
+        else:
+            obj = getattr(obj, p, _MISSING)
+        if obj is _MISSING or obj is None:
+            return default
+    return obj
 
 
 class Agent:
@@ -80,15 +102,10 @@ class Agent:
 
     def _handle_tool_call(self, tool_call):
         """Execute the appropriate tool and return a tool result message in OpenAI format."""
-        # Handle both OpenAI-style tool calls and our wrapper
-        if hasattr(tool_call, "function"):
-            # OpenAI style
-            args = json.loads(tool_call.function.arguments)
-            tool_name = tool_call.function.name
-        else:
-            # Our wrapper style
-            args = json.loads(tool_call.arguments)
-            tool_name = tool_call.name
+        tool_name = tc_attr(tool_call, "function.name", "")
+        raw_args = tc_attr(tool_call, "function.arguments", "{}")
+        args = json.loads(raw_args) if raw_args else {}
+        tc_id = tc_attr(tool_call, "id", "")
 
         # Use the registry to execute the appropriate tool
         output = self.tool_registry.execute(tool_name, args)
@@ -102,7 +119,7 @@ class Agent:
         print(f"📤 Output: {output[:500]}{'...' if len(output) > 500 else ''}")
         return {
             "role": "tool",
-            "tool_call_id": tool_call.id,
+            "tool_call_id": tc_id,
             "content": output,
         }
 

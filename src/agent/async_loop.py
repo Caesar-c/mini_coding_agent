@@ -5,7 +5,7 @@ import json
 
 from agent.async_tool_registry import AsyncToolRegistry
 from agent.display import DisplayHandler, SilentDisplayHandler
-from agent.loop import SYSTEM_PROMPT
+from agent.loop import SYSTEM_PROMPT, tc_attr
 from config import settings
 from context_manager.context import ContextCompactor
 from context_manager.tracker import (
@@ -13,7 +13,7 @@ from context_manager.tracker import (
     ProgressTracker,
     run_update_plan,
 )
-from llm import LLMProviderType, create_async_llm_provider
+from llm import LLMProviderType, create_llm_provider
 
 
 class AsyncAgent:
@@ -32,7 +32,7 @@ class AsyncAgent:
         llm_provider_type: LLMProviderType = None,
         display: DisplayHandler | None = None,
     ):
-        self.llm_provider = create_async_llm_provider(
+        self.llm_provider = create_llm_provider(
             llm_provider_type or LLMProviderType(settings.LLM_PROVIDER)
         )
 
@@ -55,10 +55,11 @@ class AsyncAgent:
         )
 
     async def _call_llm(self):
-        """Call LLM provider API asynchronously and return the assistant message."""
+        """Call LLM provider API in a worker thread and return the assistant message."""
         self.display.on_llm_start()
         try:
-            response = await self.llm_provider.chat_completion(
+            response = await asyncio.to_thread(
+                self.llm_provider.chat_completion,
                 messages=self.messages,
                 tools=self.tool_registry.definitions,
             )
@@ -84,12 +85,10 @@ class AsyncAgent:
 
     async def _handle_tool_call(self, tool_call):
         """Execute a tool asynchronously and return a tool result message."""
-        if hasattr(tool_call, "function"):
-            args = json.loads(tool_call.function.arguments)
-            tool_name = tool_call.function.name
-        else:
-            args = json.loads(tool_call.arguments)
-            tool_name = tool_call.name
+        tool_name = tc_attr(tool_call, "function.name", "")
+        raw_args = tc_attr(tool_call, "function.arguments", "{}")
+        args = json.loads(raw_args) if raw_args else {}
+        tc_id = tc_attr(tool_call, "id", "")
 
         output = await self.tool_registry.execute(tool_name, args)
 
@@ -101,7 +100,7 @@ class AsyncAgent:
         self.display.on_tool_call(tool_name, args, output)
         return {
             "role": "tool",
-            "tool_call_id": tool_call.id,
+            "tool_call_id": tc_id,
             "content": output,
         }
 
