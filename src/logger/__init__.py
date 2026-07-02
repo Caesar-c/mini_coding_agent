@@ -6,8 +6,10 @@ Usage::
     logger = get_logger(__name__)
     logger.info("something happened")
 
-Call :func:`setup_logging` once at application startup (typically in the CLI
-entry point) to configure handlers, level, and log file path.
+Logging is auto-initialized on the first :func:`get_logger` call — no
+explicit :func:`setup_logging` needed. The CLI entry point may call
+:func:`setup_logging` early to customise level or file path, but if it
+doesn't, sensible defaults are used automatically.
 
 By default logs are written to a file only — the console is reserved for
 the Rich display layer (spinners, markdown, tool panels).
@@ -68,5 +70,14 @@ def get_logger(name: str) -> logging.Logger:
 
     Typically called as ``get_logger(__name__)`` so the logger name
     mirrors the module hierarchy (e.g. ``agent.loop``, ``llm.factory``).
+
+    If :func:`setup_logging` has not been called yet, it is invoked
+    automatically using settings from ``config.py`` (log level and file
+    path). This ensures log messages are never silently dropped regardless
+    of the entry point used.
     """
+    if not _initialized:
+        from config import settings
+
+        setup_logging(level=settings.LOG_LEVEL, log_file=settings.LOG_FILE)
     return logging.getLogger(name)
