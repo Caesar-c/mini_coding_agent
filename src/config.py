@@ -58,7 +58,7 @@ class Settings:
 
     # ---- Logging ----
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FILE: str = os.getenv("LOG_FILE", "")  # empty = console only
+    LOG_FILE: str = os.getenv("LOG_FILE", "mini_agent.log")
 
     # ---- Generic accessor (for ad-hoc env vars not declared above) ----
 

@@ -7,11 +7,13 @@ Usage::
     logger.info("something happened")
 
 Call :func:`setup_logging` once at application startup (typically in the CLI
-entry point) to configure handlers, level, and optional file output.
+entry point) to configure handlers, level, and log file path.
+
+By default logs are written to a file only — the console is reserved for
+the Rich display layer (spinners, markdown, tool panels).
 """
 
 import logging
-import sys
 from logging.handlers import RotatingFileHandler
 
 _LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -23,14 +25,17 @@ _initialized = False
 
 def setup_logging(
     level: str = "INFO",
-    log_file: str = "",
+    log_file: str = "mini_agent.log",
 ) -> None:
-    """Configure the root logger with console and optional file handlers.
+    """Configure the root logger with a rotating file handler.
+
+    Logs are written to *log_file* only — nothing goes to the console so
+    that the Rich display layer has exclusive control of terminal output.
 
     Args:
         level: Logging level name (DEBUG, INFO, WARNING, ERROR, CRITICAL).
-        log_file: Path to a log file. When non-empty, a
-            :class:`RotatingFileHandler` is added (5 MB, 3 backups).
+        log_file: Path to the log file.  A :class:`RotatingFileHandler`
+            is created (5 MB, 3 backups).
     """
     global _initialized
     if _initialized:
@@ -42,12 +47,6 @@ def setup_logging(
 
     formatter = logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT)
 
-    # Console handler — writes to stderr so it doesn't interfere with piped stdout.
-    console = logging.StreamHandler(sys.stderr)
-    console.setFormatter(formatter)
-    root.addHandler(console)
-
-    # Optional rotating file handler.
     if log_file:
         file_handler = RotatingFileHandler(
             log_file,
