@@ -1,8 +1,8 @@
 """Minimal agent loop with pluggable LLM provider support."""
 
-import json
 import time
 
+from agent.message_utils import extract_tool_calls, parse_tool_call, response_to_dict
 from agent.tool_registry import ToolRegistry
 from config import settings
 from context_manager.context import ContextCompactor
@@ -16,9 +16,6 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-# Sentinel used by tc_attr to distinguish "key missing" from "key present but None".
-_MISSING = object()
-
 SYSTEM_PROMPT = """\
 You are a helpful coding assistant. You can execute bash commands and use various \
 file operation tools to accomplish tasks. Use the appropriate tools for file operations. \
@@ -28,25 +25,6 @@ For multi-step tasks, use the update_plan tool to create a plan with numbered st
 Update the plan as you complete each step by marking it "done" and moving the next \
 step to "in_progress". If the user corrects your plan or asks you to change steps, \
 call update_plan with the revised step list. This keeps you on track for long tasks."""
-
-
-def tc_attr(tool_call, attr: str, default=None):
-    """Access a tool-call field whether *tool_call* is an object or a dict.
-
-    Supports nested paths like ``"function.name"`` / ``"function.arguments"``
-    via dot notation.  Uses an internal sentinel so that a key explicitly set
-    to ``None`` still returns *default* instead of ``None``.
-    """
-    parts = attr.split(".")
-    obj = tool_call
-    for p in parts:
-        if isinstance(obj, dict):
-            obj = obj.get(p, _MISSING)
-        else:
-            obj = getattr(obj, p, _MISSING)
-        if obj is _MISSING or obj is None:
-            return default
-    return obj
 
 
 class Agent:
@@ -110,10 +88,7 @@ class Agent:
 
     def _handle_tool_call(self, tool_call):
         """Execute the appropriate tool and return a tool result message in OpenAI format."""
-        tool_name = tc_attr(tool_call, "function.name", "")
-        raw_args = tc_attr(tool_call, "function.arguments", "{}")
-        args = json.loads(raw_args) if raw_args else {}
-        tc_id = tc_attr(tool_call, "id", "")
+        tool_name, args, tc_id = parse_tool_call(tool_call)
 
         logger.info("Tool call: %s, args=%s", tool_name, str(args)[:200])
 
@@ -156,31 +131,18 @@ class Agent:
                 logger.info("Context compacted: %d -> %d messages", before, len(self.messages))
 
             message = self._call_llm()
-            # Append assistant message to history if it has content
-            if hasattr(message, "content") and message.content:
-                # Different providers might have different message formats
-                if hasattr(message, "model_dump"):
-                    self.messages.append(message.model_dump(exclude_unset=True))
-                else:
-                    # Handle our wrapper
-                    msg_dict = {
-                        "role": getattr(message, "role", "assistant"),
-                        "content": message.content,
-                    }
-                    if hasattr(message, "tool_calls") and message.tool_calls:
-                        msg_dict["tool_calls"] = message.tool_calls
-                    self.messages.append(msg_dict)
 
-            # Check if the message has tool calls - handle differently based on provider
-            if hasattr(message, "tool_calls"):
-                tool_calls = message.tool_calls
-            else:
-                # For our wrapper, access the data directly
-                tool_calls = getattr(message, "data", {}).get("tool_calls", [])
+            # Extract tool_calls first — needed to decide whether to append.
+            # OpenAI returns content=None alongside tool_calls; the message MUST
+            # be appended even when content is falsy to avoid orphaned tool results.
+            tool_calls = extract_tool_calls(message)
+            content = getattr(message, "content", None)
+
+            # Append assistant message when it carries content or tool_calls
+            if content or tool_calls:
+                self.messages.append(response_to_dict(message))
 
             if not tool_calls:
-                # No tool calls — return text
-                content = getattr(message, "content", "")
                 logger.info(
                     "Chat turn end: iterations=%d, response_len=%d", iteration, len(content or "")
                 )

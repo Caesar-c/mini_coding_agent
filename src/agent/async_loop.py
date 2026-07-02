@@ -1,12 +1,13 @@
 """Async agent loop with concurrent tool execution and display handler support."""
 
 import asyncio
-import json
 import time
 
 from agent.async_tool_registry import AsyncToolRegistry
 from agent.display import DisplayHandler, SilentDisplayHandler
-from agent.loop import SYSTEM_PROMPT, tc_attr
+from agent.loop import SYSTEM_PROMPT
+from agent.message_utils import extract_tool_calls, parse_tool_call, response_to_dict
+from agent.subagent import TASK_TOOL_DEFINITION, make_task_handler
 from config import settings
 from context_manager.context import ContextCompactor
 from context_manager.tracker import (
@@ -58,6 +59,21 @@ class AsyncAgent:
             lambda args: run_update_plan(args, self.progress_tracker),
         )
 
+        # --- Subagent support ---
+        # Child registry: only CHILD tools (no task, no update_plan).
+        # AsyncToolRegistry() auto-registers ASYNC_ALL_TOOLS (the 6 base tools).
+        # task and update_plan are manually registered to the main registry only,
+        # so they are not in ASYNC_ALL_TOOLS. The exclude parameter is used
+        # defensively to guard against future additions to ASYNC_ALL_TOOLS
+        # that should not leak into subagents.
+        self._child_registry = AsyncToolRegistry(exclude=["task", "update_plan"])
+
+        # Register task tool to main registry (parent Agent only)
+        self.tool_registry.register(
+            TASK_TOOL_DEFINITION,
+            make_task_handler(self),
+        )
+
     async def _call_llm(self):
         """Call LLM provider API in a worker thread and return the assistant message."""
         logger.info("LLM call start: messages=%d", len(self.messages))
@@ -93,10 +109,7 @@ class AsyncAgent:
 
     async def _handle_tool_call(self, tool_call):
         """Execute a tool asynchronously and return a tool result message."""
-        tool_name = tc_attr(tool_call, "function.name", "")
-        raw_args = tc_attr(tool_call, "function.arguments", "{}")
-        args = json.loads(raw_args) if raw_args else {}
-        tc_id = tc_attr(tool_call, "id", "")
+        tool_name, args, tc_id = parse_tool_call(tool_call)
 
         logger.info("Tool call: %s, args=%s", tool_name, str(args)[:200])
 
@@ -138,27 +151,17 @@ class AsyncAgent:
 
             message = await self._call_llm()
 
-            # Append assistant message to history
-            if hasattr(message, "content") and message.content:
-                if hasattr(message, "model_dump"):
-                    self.messages.append(message.model_dump(exclude_unset=True))
-                else:
-                    msg_dict = {
-                        "role": getattr(message, "role", "assistant"),
-                        "content": message.content,
-                    }
-                    if hasattr(message, "tool_calls") and message.tool_calls:
-                        msg_dict["tool_calls"] = message.tool_calls
-                    self.messages.append(msg_dict)
+            # Extract tool_calls first — needed to decide whether to append.
+            # OpenAI returns content=None alongside tool_calls; the message MUST
+            # be appended even when content is falsy to avoid orphaned tool results.
+            tool_calls = extract_tool_calls(message)
+            content = getattr(message, "content", None)
 
-            # Extract tool calls
-            if hasattr(message, "tool_calls"):
-                tool_calls = message.tool_calls
-            else:
-                tool_calls = getattr(message, "data", {}).get("tool_calls", [])
+            # Append assistant message when it carries content or tool_calls
+            if content or tool_calls:
+                self.messages.append(response_to_dict(message))
 
             if not tool_calls:
-                content = getattr(message, "content", "")
                 logger.info(
                     "Chat turn end: iterations=%d, response_len=%d", iteration, len(content or "")
                 )

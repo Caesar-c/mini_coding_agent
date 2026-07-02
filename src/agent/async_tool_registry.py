@@ -17,13 +17,16 @@ class AsyncToolRegistry:
     ``run_update_plan`` to coexist with async handlers like ``async_run_bash``.
     """
 
-    def __init__(self):
+    def __init__(self, exclude: list[str] | None = None):
         self._tools: dict[str, dict] = {}
         self._handlers: dict[str, Callable] = {}
 
-        # Register all async tools
+        exclude_set = set(exclude or [])
+        # Register all async tools, skipping excluded ones
         for definition, handler in ASYNC_ALL_TOOLS:
-            self.register(definition, handler)
+            name = definition["function"]["name"]
+            if name not in exclude_set:
+                self.register(definition, handler)
 
     def register(self, definition: dict, handler: Callable):
         """Register a tool with its handler function."""

@@ -53,6 +53,11 @@ class Settings:
     CONTEXT_MAX_MESSAGES: int = int(os.getenv("CONTEXT_MAX_MESSAGES", "40"))
     CONTEXT_KEEP_RECENT: int = int(os.getenv("CONTEXT_KEEP_RECENT", "12"))
 
+    # ---- Subagent ----
+    SUBAGENT_MAX_ITERATIONS: int = int(os.getenv("SUBAGENT_MAX_ITERATIONS", "15"))
+    SUBAGENT_MAX_OUTPUT: int = int(os.getenv("SUBAGENT_MAX_OUTPUT", "4096"))
+    SUBAGENT_MAX_TOOL_OUTPUT: int = int(os.getenv("SUBAGENT_MAX_TOOL_OUTPUT", "50000"))
+
     # ---- Sandbox ----
     SANDBOX_ROOT: str = os.getenv("SANDBOX_ROOT", ".")
 
