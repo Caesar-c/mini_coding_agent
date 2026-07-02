@@ -25,5 +25,9 @@ venv/
 .DS_Store
 Thumbs.db
 
+# Logs
+logs/
+*.log
+
 # Claude
 .claude/

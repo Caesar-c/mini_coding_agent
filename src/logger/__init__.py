@@ -15,6 +15,7 @@ the Rich display layer (spinners, markdown, tool panels).
 
 import logging
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 _LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -48,6 +49,10 @@ def setup_logging(
     formatter = logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT)
 
     if log_file:
+        # Ensure the log directory exists
+        log_path = Path(log_file)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
         file_handler = RotatingFileHandler(
             log_file,
             maxBytes=5 * 1024 * 1024,  # 5 MB
