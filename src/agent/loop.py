@@ -90,7 +90,7 @@ class Agent:
         """Execute the appropriate tool and return a tool result message in OpenAI format."""
         tool_name, args, tc_id = parse_tool_call(tool_call)
 
-        logger.info("Tool call: %s, args=%s", tool_name, str(args)[:200])
+        logger.info("Tool call: %s, args=%s", tool_name, str(args)[:2000])
 
         # Use the registry to execute the appropriate tool
         output = self.tool_registry.execute(tool_name, args)
@@ -101,7 +101,12 @@ class Agent:
             logger.warning("Tool output truncated: %d chars (max %d)", len(output), max_output)
             output = output[:max_output] + f"\n... [truncated, {len(output)} chars total]"
 
-        logger.info("Tool result: %s, output_len=%d", tool_name, len(output))
+        logger.info(
+            "Tool result: %s, output_len=%d, output=%.2000s",
+            tool_name,
+            len(output),
+            output,
+        )
         print(f"\n🔧 Running {tool_name}: {str(args)[:100]}{'...' if len(str(args)) > 100 else ''}")
         print(f"📤 Output: {output[:500]}{'...' if len(output) > 500 else ''}")
         return {
@@ -114,7 +119,9 @@ class Agent:
         """Run one turn of the agent loop, returns the final text response."""
         self.messages.append({"role": "user", "content": user_input})
         logger.info(
-            "Chat turn start: user_input_len=%d, messages=%d", len(user_input), len(self.messages)
+            "Chat turn start: user_input=%.2000s, messages=%d",
+            user_input,
+            len(self.messages),
         )
 
         iteration = 0
@@ -144,7 +151,9 @@ class Agent:
 
             if not tool_calls:
                 logger.info(
-                    "Chat turn end: iterations=%d, response_len=%d", iteration, len(content or "")
+                    "Chat turn end: iterations=%d, response=%.2000s",
+                    iteration,
+                    content or "",
                 )
                 if content:
                     return content

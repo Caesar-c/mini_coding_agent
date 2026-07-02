@@ -53,6 +53,12 @@ def run_bash(args: dict[str, Any]) -> str:
             output += f"\nSTDERR: {result.stderr}"
         if not output.strip():
             output = f"(Command completed with exit code {result.returncode})"
+        logger.info(
+            "bash: command=%.500s, exit_code=%d, output_len=%d",
+            command,
+            result.returncode,
+            len(output),
+        )
         return output
     except subprocess.TimeoutExpired:
         logger.warning("Command timed out after %ds: %s", timeout, command[:100])
@@ -183,6 +189,7 @@ def run_read_file(args: dict[str, Any]) -> str:
     try:
         path = args["path"]
         content = sandbox.read_file(path)
+        logger.info("read_file: path=%s, content_len=%d", path, len(content))
         return content
     except Exception as e:
         logger.error("read_file failed: %s — %s", args.get("path"), e, exc_info=True)
@@ -194,6 +201,7 @@ def run_write_file(args: dict[str, Any]) -> str:
         path = args["path"]
         content = args["content"]
         sandbox.write_file(path, content)
+        logger.info("write_file: path=%s, content_len=%d", path, len(content))
         return f"Successfully wrote {len(content)} characters to {path}"
     except Exception as e:
         logger.error("write_file failed: %s — %s", args.get("path"), e, exc_info=True)
@@ -205,6 +213,9 @@ def run_list_directory(args: dict[str, Any]) -> str:
         path = args.get("path", ".")
         recursive = args.get("recursive", False)
         files = sandbox.list_directory(path, recursive)
+        logger.info(
+            "list_directory: path=%s, recursive=%s, file_count=%d", path, recursive, len(files)
+        )
         if not files:
             return f"No files found in directory: {path}"
         return "\n".join(files)
@@ -218,6 +229,7 @@ def run_create_directory(args: dict[str, Any]) -> str:
         path = args["path"]
         parents = args.get("parents", True)
         sandbox.create_directory(path, parents)
+        logger.info("create_directory: path=%s, parents=%s", path, parents)
         return f"Successfully created directory: {path}"
     except Exception as e:
         logger.error("create_directory failed: %s — %s", args.get("path"), e, exc_info=True)
@@ -228,6 +240,7 @@ def run_file_exists(args: dict[str, Any]) -> str:
     try:
         path = args["path"]
         exists = sandbox.file_exists(path)
+        logger.info("file_exists: path=%s, exists=%s", path, exists)
         return f"File {path} {'exists' if exists else 'does not exist'}"
     except Exception as e:
         logger.error("file_exists failed: %s — %s", args.get("path"), e, exc_info=True)

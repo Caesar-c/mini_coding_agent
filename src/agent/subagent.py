@@ -88,7 +88,7 @@ async def run_subagent(
         {"role": "user", "content": prompt},
     ]
 
-    logger.info("Subagent spawned: prompt_len=%d, max_iter=%d", len(prompt), max_iterations)
+    logger.info("Subagent spawned: prompt=%.2000s, max_iter=%d", prompt, max_iterations)
 
     last_text = ""
     for iteration in range(1, max_iterations + 1):
@@ -105,6 +105,13 @@ async def run_subagent(
         tool_calls = extract_tool_calls(response)
         content = getattr(response, "content", None)
 
+        logger.info(
+            "Subagent iteration %d: content_len=%d, tool_calls=%d",
+            iteration,
+            len(content or ""),
+            len(tool_calls),
+        )
+
         # Append assistant message when it carries content or tool_calls
         if content or tool_calls:
             messages.append(response_to_dict(response))
@@ -117,9 +124,9 @@ async def run_subagent(
             # No tool calls — subagent is done
             last_text = content or ""
             logger.info(
-                "Subagent finished: iterations=%d, result_len=%d",
+                "Subagent finished: iterations=%d, result=%.2000s",
                 iteration,
-                len(last_text),
+                last_text,
             )
             break
 
@@ -127,7 +134,7 @@ async def run_subagent(
         for tc in tool_calls:
             tool_name, args, tc_id = parse_tool_call(tc)
 
-            logger.info("Subagent tool call: %s, args=%s", tool_name, str(args)[:200])
+            logger.info("Subagent tool call: %s, args=%s", tool_name, str(args)[:2000])
 
             output = await child_registry.execute(tool_name, args)
 
@@ -139,6 +146,13 @@ async def run_subagent(
                     max_tool_output,
                 )
                 output = output[:max_tool_output] + f"\n... [truncated, {len(output)} chars total]"
+
+            logger.info(
+                "Subagent tool result: %s, output_len=%d, output=%.2000s",
+                tool_name,
+                len(output),
+                output,
+            )
 
             messages.append(
                 {
@@ -182,7 +196,7 @@ def make_task_handler(agent) -> Callable:
         if not prompt:
             return "Error: 'prompt' is required."
 
-        logger.info("Task tool invoked: prompt_len=%d", len(prompt))
+        logger.info("Task tool invoked: prompt=%.2000s", prompt)
 
         return await run_subagent(
             prompt=prompt,

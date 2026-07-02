@@ -165,6 +165,15 @@ class OpenAILLMProvider(LLMProvider):
                 len(message_data.get("content") or ""),
                 len(message_data.get("tool_calls") or []),
             )
+            # Log token usage if available
+            usage = getattr(response, "usage", None)
+            if usage:
+                logger.info(
+                    "OpenAI tokens: prompt=%d, completion=%d, total=%d",
+                    getattr(usage, "prompt_tokens", 0),
+                    getattr(usage, "completion_tokens", 0),
+                    getattr(usage, "total_tokens", 0),
+                )
             return MessageWrapper(message_data)
         except Exception as e:
             logger.error("OpenAI API error: %s", e, exc_info=True)

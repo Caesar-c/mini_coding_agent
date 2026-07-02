@@ -111,7 +111,7 @@ class AsyncAgent:
         """Execute a tool asynchronously and return a tool result message."""
         tool_name, args, tc_id = parse_tool_call(tool_call)
 
-        logger.info("Tool call: %s, args=%s", tool_name, str(args)[:200])
+        logger.info("Tool call: %s, args=%s", tool_name, str(args)[:2000])
 
         output = await self.tool_registry.execute(tool_name, args)
 
@@ -121,7 +121,12 @@ class AsyncAgent:
             logger.warning("Tool output truncated: %d chars (max %d)", len(output), max_output)
             output = output[:max_output] + f"\n... [truncated, {len(output)} chars total]"
 
-        logger.info("Tool result: %s, output_len=%d", tool_name, len(output))
+        logger.info(
+            "Tool result: %s, output_len=%d, output=%.2000s",
+            tool_name,
+            len(output),
+            output,
+        )
         self.display.on_tool_call(tool_name, args, output)
         return {
             "role": "tool",
@@ -133,7 +138,9 @@ class AsyncAgent:
         """Run one turn of the async agent loop, returns the final text response."""
         self.messages.append({"role": "user", "content": user_input})
         logger.info(
-            "Chat turn start: user_input_len=%d, messages=%d", len(user_input), len(self.messages)
+            "Chat turn start: user_input=%.2000s, messages=%d",
+            user_input,
+            len(self.messages),
         )
 
         iteration = 0
@@ -163,7 +170,9 @@ class AsyncAgent:
 
             if not tool_calls:
                 logger.info(
-                    "Chat turn end: iterations=%d, response_len=%d", iteration, len(content or "")
+                    "Chat turn end: iterations=%d, response=%.2000s",
+                    iteration,
+                    content or "",
                 )
                 if content:
                     self.display.on_response(content)

@@ -79,6 +79,12 @@ async def async_run_bash(args: dict[str, Any]) -> str:
             output += f"\nSTDERR: {stderr}"
         if not output.strip():
             output = f"(Command completed with exit code {proc.returncode})"
+        logger.info(
+            "bash: command=%.500s, exit_code=%d, output_len=%d",
+            command,
+            proc.returncode,
+            len(output),
+        )
         return output
     except Exception as e:
         logger.error("Async command failed: %s — %s", command[:100], e, exc_info=True)
