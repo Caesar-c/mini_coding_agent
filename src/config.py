@@ -56,6 +56,10 @@ class Settings:
     # ---- Sandbox ----
     SANDBOX_ROOT: str = os.getenv("SANDBOX_ROOT", ".")
 
+    # ---- Logging ----
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FILE: str = os.getenv("LOG_FILE", "")  # empty = console only
+
     # ---- Generic accessor (for ad-hoc env vars not declared above) ----
 
     def get(self, name: str, default: str | None = None) -> str | None:

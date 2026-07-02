@@ -16,6 +16,9 @@ from config import settings
 from llm.interface import LLMProvider
 from llm.openai_provider import OpenAILLMProvider
 from llm.zhipu_provider import ZhipuAILLMProvider
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class LLMProviderType(Enum):
@@ -41,12 +44,18 @@ def create_llm_provider(provider_type: LLMProviderType) -> LLMProvider:
         ValueError: If ``provider_type`` is not recognised.
     """
     if provider_type == LLMProviderType.OPENAI:
+        logger.info(
+            "Creating OpenAI provider: model=%s, base_url=%s",
+            settings.OPENAI_MODEL,
+            settings.OPENAI_BASE_URL,
+        )
         return OpenAILLMProvider(
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
             model=settings.OPENAI_MODEL,
         )
     elif provider_type == LLMProviderType.ZHIPU_AI:
+        logger.info("Creating ZhipuAI provider: model=%s", settings.ZHIPU_MODEL)
         return ZhipuAILLMProvider(api_key=settings.ZHIPU_API_KEY, model=settings.ZHIPU_MODEL)
     else:
         raise ValueError(f"Unsupported provider type: {provider_type}")

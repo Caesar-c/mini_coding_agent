@@ -3,6 +3,9 @@ import subprocess
 from typing import Any
 
 from agent.path_sandbox import PathSandbox
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 # Create a global sandbox instance with current directory as root
 sandbox = PathSandbox(root_dir=".")
@@ -32,6 +35,7 @@ def run_bash(args: dict[str, Any]) -> str:
     command_lower = command.lower()
     for pattern in dangerous_patterns:
         if re.search(pattern, command_lower):
+            logger.warning("Dangerous command blocked: %s (matched %s)", command[:100], pattern)
             return "Error: Dangerous command blocked"
 
     # Execute command in the sandboxed directory
@@ -51,8 +55,10 @@ def run_bash(args: dict[str, Any]) -> str:
             output = f"(Command completed with exit code {result.returncode})"
         return output
     except subprocess.TimeoutExpired:
+        logger.warning("Command timed out after %ds: %s", timeout, command[:100])
         return f"Error: Command timed out after {timeout} seconds"
     except Exception as e:
+        logger.error("Command failed: %s — %s", command[:100], e, exc_info=True)
         return f"Error: {str(e)}"
 
 
@@ -179,6 +185,7 @@ def run_read_file(args: dict[str, Any]) -> str:
         content = sandbox.read_file(path)
         return content
     except Exception as e:
+        logger.error("read_file failed: %s — %s", args.get("path"), e, exc_info=True)
         return f"Error reading file: {str(e)}"
 
 
@@ -189,6 +196,7 @@ def run_write_file(args: dict[str, Any]) -> str:
         sandbox.write_file(path, content)
         return f"Successfully wrote {len(content)} characters to {path}"
     except Exception as e:
+        logger.error("write_file failed: %s — %s", args.get("path"), e, exc_info=True)
         return f"Error writing file: {str(e)}"
 
 
@@ -201,6 +209,7 @@ def run_list_directory(args: dict[str, Any]) -> str:
             return f"No files found in directory: {path}"
         return "\n".join(files)
     except Exception as e:
+        logger.error("list_directory failed: %s — %s", args.get("path"), e, exc_info=True)
         return f"Error listing directory: {str(e)}"
 
 
@@ -211,6 +220,7 @@ def run_create_directory(args: dict[str, Any]) -> str:
         sandbox.create_directory(path, parents)
         return f"Successfully created directory: {path}"
     except Exception as e:
+        logger.error("create_directory failed: %s — %s", args.get("path"), e, exc_info=True)
         return f"Error creating directory: {str(e)}"
 
 
@@ -220,6 +230,7 @@ def run_file_exists(args: dict[str, Any]) -> str:
         exists = sandbox.file_exists(path)
         return f"File {path} {'exists' if exists else 'does not exist'}"
     except Exception as e:
+        logger.error("file_exists failed: %s — %s", args.get("path"), e, exc_info=True)
         return f"Error checking file existence: {str(e)}"
 
 

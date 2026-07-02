@@ -1,5 +1,9 @@
 """Context window management — compacts old messages to prevent context bloat."""
 
+from logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class ContextCompactor:
     """Reduces context size by removing old tool results from the middle.
@@ -70,6 +74,10 @@ class ContextCompactor:
 
         # Safety guard: compaction should never increase message count
         if len(result) >= len(messages):
+            logger.warning(
+                "Compaction produced no reduction (%d -> %d), skipping", len(messages), len(result)
+            )
             return messages
 
+        logger.info("Context compacted: %d -> %d messages", len(messages), len(result))
         return result

@@ -9,7 +9,10 @@ from prompt_toolkit.history import FileHistory
 
 from cli.display import RichDisplayHandler
 from config import settings
+from logger import get_logger
 from session.manager import SessionManager
+
+logger = get_logger(__name__)
 
 _HISTORY_FILE = Path.home() / ".mini_agent_history"
 
@@ -60,12 +63,14 @@ async def run_repl(
         completer=WordCompleter(SLASH_COMMANDS, sentence=True),
         multiline=False,
     )
+    logger.info("REPL started")
 
     while True:
         # Get input in a thread to keep event loop free for spinners
         try:
             user_input = await asyncio.to_thread(prompt_session.prompt, "> ", multiline=False)
         except (EOFError, KeyboardInterrupt):
+            logger.info("REPL exiting (interrupt)")
             display.show_info("\nGoodbye!")
             break
 
@@ -75,10 +80,14 @@ async def run_repl(
 
         # Handle slash commands
         if user_input.startswith("/"):
+            logger.info("Slash command: %s", user_input)
             should_quit = _handle_slash_command(user_input, session_manager, display)
             if should_quit:
+                logger.info("REPL exiting")
                 break
             continue
+
+        logger.debug("User input: len=%d", len(user_input))
 
         # Regular chat message
         agent = session_manager.active

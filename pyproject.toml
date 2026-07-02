@@ -27,6 +27,7 @@ packages = [
     "src/cli",
     "src/agent",
     "src/llm",
+    "src/logger",
     "src/context_manager",
     "src/session",
     "src/config.py",
@@ -57,4 +58,4 @@ ignore = [
 ban-relative-imports = "all"
 
 [tool.ruff.lint.isort]
-known-first-party = ["agent", "llm", "cli", "config", "context_manager", "session"]
+known-first-party = ["agent", "llm", "cli", "config", "context_manager", "logger", "session"]

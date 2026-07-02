@@ -9,6 +9,9 @@ from typing import Any
 from zai import ZhipuAiClient
 
 from llm.interface import LLMProvider, MessageWrapper
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ZhipuAILLMProvider(LLMProvider):
@@ -71,6 +74,14 @@ class ZhipuAILLMProvider(LLMProvider):
         api_params = {k: v for k, v in api_params.items() if v is not None}
 
         try:
+            logger.info(
+                "ZhipuAI chat_completion: model=%s, messages=%d, stream=%s, thinking=%s, tools=%s",
+                self.model,
+                len(messages),
+                stream,
+                thinking,
+                bool(tools),
+            )
             client = self._get_client()
             response = client.chat.completions.create(**api_params)
 
@@ -131,8 +142,14 @@ class ZhipuAILLMProvider(LLMProvider):
                     "content": getattr(message, "content", ""),
                     "tool_calls": list(getattr(message, "tool_calls", None) or []),
                 }
+            logger.info(
+                "ZhipuAI response: content_len=%d, tool_calls=%d",
+                len(message_data.get("content") or ""),
+                len(message_data.get("tool_calls") or []),
+            )
             return MessageWrapper(message_data)
         except Exception as e:
+            logger.error("ZhipuAI API error: %s", e, exc_info=True)
             return MessageWrapper(
                 {
                     "role": "assistant",

@@ -4,6 +4,9 @@ import asyncio
 from collections.abc import Callable
 
 from agent.async_tools import ASYNC_ALL_TOOLS
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class AsyncToolRegistry:
@@ -36,14 +39,17 @@ class AsyncToolRegistry:
     async def execute(self, tool_name: str, args: dict) -> str:
         """Execute a tool, awaiting async handlers transparently."""
         if tool_name not in self._handlers:
+            logger.warning("Unknown tool: %s", tool_name)
             return f"Error: Unknown tool '{tool_name}'"
         try:
             handler = self._handlers[tool_name]
             result = handler(args)
             if asyncio.iscoroutine(result):
-                return await result
+                result = await result
+            logger.debug("Tool %s executed: result_len=%d", tool_name, len(result))
             return result
         except Exception as e:
+            logger.error("Tool %s failed: %s", tool_name, e, exc_info=True)
             return f"Error executing tool {tool_name}: {e}"
 
     def get_tool_names(self) -> list[str]:

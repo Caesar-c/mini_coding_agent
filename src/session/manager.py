@@ -3,6 +3,9 @@
 from typing import Any
 
 from agent.async_loop import AsyncAgent
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class SessionManager:
@@ -35,6 +38,7 @@ class SessionManager:
         agent = AsyncAgent(**kwargs)
         self._sessions[name] = agent
         self._active = name
+        logger.info("Session created: '%s' (active)", name)
         return agent
 
     def switch(self, name: str) -> AsyncAgent:
@@ -49,6 +53,7 @@ class SessionManager:
         if name not in self._sessions:
             raise KeyError(f"Session '{name}' not found.")
         self._active = name
+        logger.info("Switched to session: '%s'", name)
         return self._sessions[name]
 
     def remove(self, name: str) -> None:
@@ -62,6 +67,7 @@ class SessionManager:
         del self._sessions[name]
         if self._active == name:
             self._active = next(iter(self._sessions), None)
+        logger.info("Session removed: '%s' (active now: %s)", name, self._active)
 
     def list_sessions(self) -> list[str]:
         """Return names of all active sessions."""

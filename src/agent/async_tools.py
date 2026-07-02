@@ -23,6 +23,9 @@ from agent.tools import (
     run_read_file,
     run_write_file,
 )
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 # Shared sandbox instance
 sandbox = PathSandbox(root_dir=".")
@@ -50,6 +53,7 @@ async def async_run_bash(args: dict[str, Any]) -> str:
     command_lower = command.lower()
     for pattern in DANGEROUS_PATTERNS:
         if re.search(pattern, command_lower):
+            logger.warning("Dangerous command blocked: %s (matched %s)", command[:100], pattern)
             return "Error: Dangerous command blocked"
 
     try:
@@ -62,6 +66,9 @@ async def async_run_bash(args: dict[str, Any]) -> str:
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except TimeoutError:
+            logger.warning(
+                "Async command timed out after %ds, killing process: %s", timeout, command[:100]
+            )
             proc.kill()
             return f"Error: Command timed out after {timeout} seconds"
 
@@ -74,6 +81,7 @@ async def async_run_bash(args: dict[str, Any]) -> str:
             output = f"(Command completed with exit code {proc.returncode})"
         return output
     except Exception as e:
+        logger.error("Async command failed: %s — %s", command[:100], e, exc_info=True)
         return f"Error: {e}"
 
 

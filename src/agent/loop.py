@@ -1,6 +1,7 @@
 """Minimal agent loop with pluggable LLM provider support."""
 
 import json
+import time
 
 from agent.tool_registry import ToolRegistry
 from config import settings
@@ -11,6 +12,9 @@ from context_manager.tracker import (
     run_update_plan,
 )
 from llm import LLMProviderType, create_llm_provider
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 # Sentinel used by tc_attr to distinguish "key missing" from "key present but None".
 _MISSING = object()
@@ -77,10 +81,14 @@ class Agent:
 
     def _call_llm(self):
         """Call LLM provider API and return the assistant message."""
+        logger.info("LLM call start: messages=%d", len(self.messages))
+        t0 = time.monotonic()
         response = self.llm_provider.chat_completion(
             messages=self.messages,
-            tools=self.tool_registry.definitions,  # Use all registered tools
+            tools=self.tool_registry.definitions,
         )
+        elapsed = time.monotonic() - t0
+        logger.info("LLM call end: %.2fs", elapsed)
         return response
 
     def _inject_progress(self):
@@ -107,14 +115,18 @@ class Agent:
         args = json.loads(raw_args) if raw_args else {}
         tc_id = tc_attr(tool_call, "id", "")
 
+        logger.info("Tool call: %s, args=%s", tool_name, str(args)[:200])
+
         # Use the registry to execute the appropriate tool
         output = self.tool_registry.execute(tool_name, args)
 
         # --- Tool result truncation ---
         max_output = settings.MAX_TOOL_OUTPUT
         if len(output) > max_output:
+            logger.warning("Tool output truncated: %d chars (max %d)", len(output), max_output)
             output = output[:max_output] + f"\n... [truncated, {len(output)} chars total]"
 
+        logger.info("Tool result: %s, output_len=%d", tool_name, len(output))
         print(f"\n🔧 Running {tool_name}: {str(args)[:100]}{'...' if len(str(args)) > 100 else ''}")
         print(f"📤 Output: {output[:500]}{'...' if len(output) > 500 else ''}")
         return {
@@ -126,14 +138,22 @@ class Agent:
     def chat(self, user_input: str) -> str:
         """Run one turn of the agent loop, returns the final text response."""
         self.messages.append({"role": "user", "content": user_input})
+        logger.info(
+            "Chat turn start: user_input_len=%d, messages=%d", len(user_input), len(self.messages)
+        )
 
+        iteration = 0
         while True:
+            iteration += 1
+
             # --- Progress reinforcement ---
             self._inject_progress()
 
             # --- Context compaction ---
             if self.context_compactor.should_compact(self.messages):
+                before = len(self.messages)
                 self.messages = self.context_compactor.compact(self.messages)
+                logger.info("Context compacted: %d -> %d messages", before, len(self.messages))
 
             message = self._call_llm()
             # Append assistant message to history if it has content
@@ -161,11 +181,15 @@ class Agent:
             if not tool_calls:
                 # No tool calls — return text
                 content = getattr(message, "content", "")
+                logger.info(
+                    "Chat turn end: iterations=%d, response_len=%d", iteration, len(content or "")
+                )
                 if content:
                     return content
                 return ""
 
             # Execute all tool calls and feed results back
+            logger.info("Executing %d tool call(s) in iteration %d", len(tool_calls), iteration)
             for tool_call in tool_calls:
                 result = self._handle_tool_call(tool_call)
                 self.messages.append(result)

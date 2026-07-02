@@ -4,7 +4,10 @@ from cli.display import RichDisplayHandler
 from cli.repl import run_repl
 from config import settings
 from llm.factory import LLMProviderType
+from logger import get_logger
 from session.manager import SessionManager
+
+logger = get_logger(__name__)
 
 
 async def async_chat(
@@ -38,6 +41,7 @@ async def async_chat(
     # Create session manager with default session
     manager = SessionManager()
     manager.create("default", llm_provider_type=provider_type, display=display)
+    logger.info("Chat session ready: provider=%s, model=%s", provider_name, resolved_model)
 
     # Run the REPL
     await run_repl(manager, display)

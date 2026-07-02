@@ -3,6 +3,10 @@
 from dataclasses import dataclass
 from typing import Any
 
+from logger import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class Step:
@@ -174,4 +178,5 @@ def run_update_plan(args: dict[str, Any], tracker: ProgressTracker) -> str:
     steps = args.get("steps", [])
     if not steps:
         return "Error: 'steps' must be a non-empty list."
+    logger.info("Plan updated: %d step(s)", len(steps))
     return tracker.update_plan(steps)

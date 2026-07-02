@@ -4,6 +4,9 @@ from agent.async_loop import AsyncAgent
 from cli.display import RichDisplayHandler
 from config import settings
 from llm.factory import LLMProviderType
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 async def async_run(
@@ -31,3 +34,4 @@ async def async_run(
 
     display.show_info(f"Executing: {task}")
     await agent.chat(task)
+    logger.info("Run completed: task='%s'", task[:80])

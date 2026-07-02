@@ -5,6 +5,9 @@ from typing import Any
 import openai
 
 from llm.interface import LLMProvider, MessageWrapper
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class OpenAILLMProvider(LLMProvider):
@@ -87,6 +90,13 @@ class OpenAILLMProvider(LLMProvider):
         api_params = {k: v for k, v in api_params.items() if v is not None}
 
         try:
+            logger.info(
+                "OpenAI chat_completion: model=%s, messages=%d, stream=%s, tools=%s",
+                self.model,
+                len(messages),
+                stream,
+                bool(tools),
+            )
             # v1.x client — streaming + tool_calls + reasoning all require it.
             client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
             response = client.chat.completions.create(**api_params)
@@ -150,8 +160,14 @@ class OpenAILLMProvider(LLMProvider):
                     "reasoning_content": getattr(message, "reasoning_content", None) or "",
                 }
 
+            logger.info(
+                "OpenAI response: content_len=%d, tool_calls=%d",
+                len(message_data.get("content") or ""),
+                len(message_data.get("tool_calls") or []),
+            )
             return MessageWrapper(message_data)
         except Exception as e:
+            logger.error("OpenAI API error: %s", e, exc_info=True)
             return MessageWrapper(
                 {
                     "role": "assistant",

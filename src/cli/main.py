@@ -4,6 +4,12 @@ import asyncio
 
 import typer
 
+from config import settings
+from logger import get_logger, setup_logging
+
+logger = get_logger(__name__)
+setup_logging(level=settings.LOG_LEVEL, log_file=settings.LOG_FILE)
+
 app = typer.Typer(
     name="mini-agent",
     help="🤖 Mini Coding Agent — an AI coding assistant with pluggable LLM backends.",
@@ -23,6 +29,7 @@ def chat(
     """Start an interactive chat session with the coding agent."""
     from cli.commands.chat import async_chat
 
+    logger.info("Starting chat: provider=%s, model=%s, sandbox=%s", provider, model, sandbox)
     asyncio.run(async_chat(provider=provider, model=model, sandbox=sandbox, max_tokens=max_tokens))
 
 
@@ -36,6 +43,7 @@ def run(
     sandbox: str | None = typer.Option(None, "--sandbox", "-s", help="Sandbox root directory"),
 ) -> None:
     """Execute a single task non-interactively."""
+    logger.info("Starting run: task='%s', provider=%s, model=%s", task[:80], provider, model)
     from cli.commands.run import async_run
 
     asyncio.run(async_run(task=task, provider=provider, model=model, sandbox=sandbox))
