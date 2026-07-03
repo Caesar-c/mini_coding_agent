@@ -17,6 +17,7 @@ from context_manager.tracker import (
 )
 from llm import LLMProviderType, create_llm_provider
 from logger import get_logger
+from skills import LOAD_SKILL_TOOL_DEFINITION, build_system_prompt, make_load_skill_handler
 
 logger = get_logger(__name__)
 
@@ -41,8 +42,11 @@ class AsyncAgent:
             llm_provider_type or LLMProviderType(settings.LLM_PROVIDER)
         )
 
+        # --- Skill loading ---
+        enhanced_prompt, self.skill_loader = build_system_prompt(SYSTEM_PROMPT)
+
         self.messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": enhanced_prompt},
         ]
 
         self.tool_registry = AsyncToolRegistry()
@@ -59,6 +63,12 @@ class AsyncAgent:
             lambda args: run_update_plan(args, self.progress_tracker),
         )
 
+        # --- Skill tool ---
+        skill_handler = make_load_skill_handler(
+            self.skill_loader, max_chars=settings.SKILL_MAX_CONTENT_CHARS
+        )
+        self.tool_registry.register(LOAD_SKILL_TOOL_DEFINITION, skill_handler)
+
         # --- Subagent support ---
         # Child registry: only CHILD tools (no task, no update_plan).
         # AsyncToolRegistry() auto-registers ASYNC_ALL_TOOLS (the 6 base tools).
@@ -67,6 +77,8 @@ class AsyncAgent:
         # defensively to guard against future additions to ASYNC_ALL_TOOLS
         # that should not leak into subagents.
         self._child_registry = AsyncToolRegistry(exclude=["task", "update_plan"])
+        # Register load_skill to child registry (subagents can load skills too)
+        self._child_registry.register(LOAD_SKILL_TOOL_DEFINITION, skill_handler)
 
         # Register task tool to main registry (parent Agent only)
         self.tool_registry.register(

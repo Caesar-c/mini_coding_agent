@@ -13,6 +13,7 @@ from context_manager.tracker import (
 )
 from llm import LLMProviderType, create_llm_provider
 from logger import get_logger
+from skills import LOAD_SKILL_TOOL_DEFINITION, build_system_prompt, make_load_skill_handler
 
 logger = get_logger(__name__)
 
@@ -37,8 +38,11 @@ class Agent:
             llm_provider_type or LLMProviderType(settings.LLM_PROVIDER)
         )
 
+        # --- Skill loading ---
+        enhanced_prompt, self.skill_loader = build_system_prompt(SYSTEM_PROMPT)
+
         self.messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": enhanced_prompt},
         ]
 
         # Initialize the tool registry
@@ -55,6 +59,12 @@ class Agent:
         self.tool_registry.register(
             UPDATE_PLAN_TOOL_DEFINITION,
             lambda args: run_update_plan(args, self.progress_tracker),
+        )
+
+        # --- Skill tool ---
+        self.tool_registry.register(
+            LOAD_SKILL_TOOL_DEFINITION,
+            make_load_skill_handler(self.skill_loader, max_chars=settings.SKILL_MAX_CONTENT_CHARS),
         )
 
     def _call_llm(self):

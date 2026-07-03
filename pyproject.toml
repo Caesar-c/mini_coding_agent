@@ -13,6 +13,7 @@ dependencies = [
     "typer>=0.12",
     "rich>=13.0",
     "prompt-toolkit>=3.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +31,7 @@ packages = [
     "src/logger",
     "src/context_manager",
     "src/session",
+    "src/skills",
     "src/config.py",
 ]
 
@@ -58,4 +60,4 @@ ignore = [
 ban-relative-imports = "all"
 
 [tool.ruff.lint.isort]
-known-first-party = ["agent", "llm", "cli", "config", "context_manager", "logger", "session"]
+known-first-party = ["agent", "llm", "cli", "config", "context_manager", "logger", "session", "skills"]

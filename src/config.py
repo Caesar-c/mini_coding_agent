@@ -58,6 +58,10 @@ class Settings:
     SUBAGENT_MAX_OUTPUT: int = int(os.getenv("SUBAGENT_MAX_OUTPUT", "4096"))
     SUBAGENT_MAX_TOOL_OUTPUT: int = int(os.getenv("SUBAGENT_MAX_TOOL_OUTPUT", "50000"))
 
+    # ---- Skill Loading ----
+    SKILL_DIRS: str = os.getenv("SKILL_DIRS", "")
+    SKILL_MAX_CONTENT_CHARS: int = int(os.getenv("SKILL_MAX_CONTENT_CHARS", "10000"))
+
     # ---- Sandbox ----
     SANDBOX_ROOT: str = os.getenv("SANDBOX_ROOT", ".")
 

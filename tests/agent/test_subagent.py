@@ -202,6 +202,7 @@ class TestTaskToolHandler(unittest.TestCase):
         mock_agent = MagicMock()
         mock_agent._child_registry = MagicMock()
         mock_agent._child_registry.definitions = []
+        mock_agent.skill_loader = MagicMock(count=0)
 
         with patch("agent.subagent.run_subagent", return_value="subagent result") as mock_run:
             handler = make_task_handler(mock_agent)
@@ -223,6 +224,7 @@ class TestEmptyPromptRejected(unittest.TestCase):
         from agent.subagent import make_task_handler
 
         mock_agent = MagicMock()
+        mock_agent.skill_loader = MagicMock(count=0)
         handler = make_task_handler(mock_agent)
 
         result = await handler({"prompt": ""})

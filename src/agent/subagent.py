@@ -191,6 +191,14 @@ def make_task_handler(agent) -> Callable:
     llm_provider = agent.llm_provider
     child_registry = agent._child_registry
 
+    # Build subagent system prompt with skill catalog (if available)
+    subagent_prompt = SUBAGENT_SYSTEM_PROMPT
+    try:
+        if agent.skill_loader.count > 0:
+            subagent_prompt += f"\n\n{agent.skill_loader.get_descriptions()}"
+    except (AttributeError, TypeError):
+        logger.debug("Skill catalog not available for subagent prompt")
+
     async def run_task(args: dict) -> str:
         prompt = args.get("prompt", "")
         if not prompt:
@@ -203,7 +211,7 @@ def make_task_handler(agent) -> Callable:
             llm_provider=llm_provider,
             child_tools=child_registry.definitions,
             child_registry=child_registry,
-            system_prompt=SUBAGENT_SYSTEM_PROMPT,
+            system_prompt=subagent_prompt,
             max_iterations=settings.SUBAGENT_MAX_ITERATIONS,
             max_output_chars=settings.SUBAGENT_MAX_OUTPUT,
             max_tool_output=settings.SUBAGENT_MAX_TOOL_OUTPUT,

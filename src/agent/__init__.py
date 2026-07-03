@@ -3,6 +3,7 @@ from agent.display import DisplayHandler, SilentDisplayHandler
 from agent.loop import Agent
 from agent.subagent import run_subagent
 from context_manager.tracker import ProgressTracker
+from skills import SkillLoader
 
 __all__ = [
     "Agent",
@@ -10,5 +11,6 @@ __all__ = [
     "DisplayHandler",
     "ProgressTracker",
     "SilentDisplayHandler",
+    "SkillLoader",
     "run_subagent",
 ]
