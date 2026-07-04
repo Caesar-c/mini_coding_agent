@@ -11,7 +11,7 @@ from pathlib import Path
 
 import yaml
 
-from config import settings
+from config import PROJECT_ROOT, settings
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -83,6 +83,10 @@ class SkillLoader:
         """Return sorted list of all loaded skill names."""
         return sorted(self._skills.keys())
 
+    def get_skill(self, name: str) -> SkillEntry | None:
+        """Return the SkillEntry for the given name, or None if not found."""
+        return self._skills.get(name)
+
     @property
     def count(self) -> int:
         """Number of loaded skills."""
@@ -95,7 +99,7 @@ class SkillLoader:
         """Return default skill directories (high priority first)."""
         dirs: list[Path] = []
         # Project-level (highest priority)
-        project_skills = Path.cwd() / "skills"
+        project_skills = PROJECT_ROOT / "skills"
         if project_skills.is_dir():
             dirs.append(project_skills)
         # User-level

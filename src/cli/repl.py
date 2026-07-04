@@ -28,6 +28,7 @@ SLASH_COMMANDS = [
     "/compact",
     "/history",
     "/tools",
+    "/skills",
     "/help",
 ]
 
@@ -44,6 +45,7 @@ HELP_TEXT = """\
   /compact    — Manually trigger context compaction
   /history    — Show message count statistics
   /tools      — List available tools
+  /skills     — List loaded skills (domain knowledge)
   /help       — Show this help message
 """
 
@@ -217,6 +219,29 @@ def _handle_slash_command(
         if agent:
             names = agent.tool_registry.get_tool_names()
             display.show_info(f"Available tools: {', '.join(names)}")
+        else:
+            display.show_error("No active session.")
+
+    elif cmd == "/skills":
+        agent = session_manager.active
+        if agent:
+            skill_loader = agent.skill_loader
+            if skill_loader.count == 0:
+                display.show_info("No skills loaded.")
+            else:
+                table = Table(title="Loaded Skills", show_lines=False)
+                table.add_column("Name", style="bold cyan")
+                table.add_column("Description")
+                table.add_column("Version", justify="center")
+                table.add_column("Tags")
+                for name in skill_loader.list_names():
+                    entry = skill_loader.get_skill(name)
+                    if entry is None:
+                        continue
+                    ver = entry.version or "—"
+                    tags = ", ".join(entry.tags) if entry.tags else "—"
+                    table.add_row(entry.name, entry.description, ver, tags)
+                console.print(table)
         else:
             display.show_error("No active session.")
 

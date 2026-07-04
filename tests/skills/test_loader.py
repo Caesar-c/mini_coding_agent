@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from config import PROJECT_ROOT
 from skills.loader import SkillLoader
 
 
@@ -190,6 +191,17 @@ class TestSkillLoaderAPI(unittest.TestCase):
 
     def test_list_names(self):
         self.assertEqual(self.loader.list_names(), ["test-skill"])
+
+
+class TestSkillLoaderDefaultDirs(unittest.TestCase):
+    """Test default skill directory resolution."""
+
+    def test_default_dirs_uses_project_root_skills(self):
+        dirs = SkillLoader._default_dirs()
+        project_skills = PROJECT_ROOT / "skills"
+        if project_skills.is_dir():
+            self.assertIn(project_skills, dirs)
+            self.assertEqual(dirs[0], project_skills)
 
 
 if __name__ == "__main__":
