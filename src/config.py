@@ -22,11 +22,11 @@ from pathlib import Path
 
 # Load .env from project root (one level above src/). Only the first call
 # mutates the process env; subsequent imports are cheap no-ops.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 try:
     from dotenv import load_dotenv
 
-    load_dotenv(_PROJECT_ROOT / ".env")
+    load_dotenv(PROJECT_ROOT / ".env")
 except ImportError:  # python-dotenv is optional; fall back to raw env
     pass
 
@@ -67,7 +67,7 @@ class Settings:
 
     # ---- Logging ----
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FILE: str = os.getenv("LOG_FILE", str(_PROJECT_ROOT / "logs" / "mini_agent.log"))
+    LOG_FILE: str = os.getenv("LOG_FILE", str(PROJECT_ROOT / "logs" / "mini_agent.log"))
 
     # ---- Generic accessor (for ad-hoc env vars not declared above) ----
 
