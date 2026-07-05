@@ -35,7 +35,7 @@ class OpenAILLMProvider(LLMProvider):
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
-        stream: bool = False,
+        stream: bool = True,
         reasoning: bool = False,
         reasoning_effort: str = "medium",
         **kwargs,

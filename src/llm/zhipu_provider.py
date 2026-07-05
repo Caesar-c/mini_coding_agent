@@ -41,7 +41,7 @@ class ZhipuAILLMProvider(LLMProvider):
         thinking: bool = True,
         max_tokens: int = 65536,
         temperature: float = 0.7,
-        stream: bool = False,
+        stream: bool = True,
         **kwargs,
     ) -> MessageWrapper:
         """Generate a chat completion using the Zhipu AI API.
