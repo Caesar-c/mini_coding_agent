@@ -62,6 +62,18 @@ class Settings:
     SKILL_DIRS: str = os.getenv("SKILL_DIRS", "")
     SKILL_MAX_CONTENT_CHARS: int = int(os.getenv("SKILL_MAX_CONTENT_CHARS", "10000"))
 
+    # ---- Context Compression (Three-Layer) ----
+    # Layer 1: Micro — per-message smart truncation
+    CONTEXT_MICRO_MAX_CHARS: int = int(os.getenv("CONTEXT_MICRO_MAX_CHARS", "4000"))
+    CONTEXT_MICRO_KEEP_HEAD_LINES: int = int(os.getenv("CONTEXT_MICRO_KEEP_HEAD_LINES", "10"))
+    CONTEXT_MICRO_KEEP_TAIL_LINES: int = int(os.getenv("CONTEXT_MICRO_KEEP_TAIL_LINES", "15"))
+    # Layer 2: Meso — section-level summarization
+    CONTEXT_MESO_MESSAGE_THRESHOLD: int = int(os.getenv("CONTEXT_MESO_MESSAGE_THRESHOLD", "20"))
+    CONTEXT_MESO_TOKEN_THRESHOLD: int = int(os.getenv("CONTEXT_MESO_TOKEN_THRESHOLD", "8000"))
+    CONTEXT_MESO_USE_LLM: bool = os.getenv("CONTEXT_MESO_USE_LLM", "false").lower() == "true"
+    # Layer 3: Macro — full context rebuild
+    CONTEXT_MACRO_TOKEN_THRESHOLD: int = int(os.getenv("CONTEXT_MACRO_TOKEN_THRESHOLD", "32000"))
+
     # ---- Sandbox ----
     SANDBOX_ROOT: str = os.getenv("SANDBOX_ROOT", ".")
 

@@ -83,7 +83,7 @@ async def run_repl(
         # Handle slash commands
         if user_input.startswith("/"):
             logger.info("Slash command: %s", user_input)
-            should_quit = _handle_slash_command(user_input, session_manager, display)
+            should_quit = await _handle_slash_command(user_input, session_manager, display)
             if should_quit:
                 logger.info("REPL exiting")
                 break
@@ -103,7 +103,7 @@ async def run_repl(
             display.show_error(f"{e}")
 
 
-def _handle_slash_command(
+async def _handle_slash_command(
     command: str,
     session_manager: SessionManager,
     display: RichDisplayHandler,
@@ -197,9 +197,20 @@ def _handle_slash_command(
         agent = session_manager.active
         if agent:
             before = len(agent.messages)
-            agent.messages = agent.context_compactor.compact(agent.messages)
+            logger.info("Manual /compact triggered: %d messages", before)
+            agent.messages = await asyncio.to_thread(agent.context_pipeline.compact, agent.messages)
             after = len(agent.messages)
-            display.show_info(f"Compaction: {before} → {after} messages.")
+            stats = agent.context_pipeline.stats
+            logger.info(
+                "Manual /compact done: %d -> %d messages, stats=%s",
+                before,
+                after,
+                stats,
+            )
+            display.show_info(
+                f"Compaction: {before} → {after} messages. "
+                f"(L1:{stats['micro_compressions']} L2:{stats['meso_compressions']} L3:{stats['macro_compressions']})"
+            )
         else:
             display.show_error("No active session.")
 
@@ -209,7 +220,7 @@ def _handle_slash_command(
             count = len(agent.messages)
             display.show_info(
                 f"Current session: {count} messages "
-                f"(compact threshold: {agent.context_compactor.max_messages})"
+                f"(compact threshold: {agent.context_pipeline.meso.meso_message_threshold} msgs)"
             )
         else:
             display.show_error("No active session.")
