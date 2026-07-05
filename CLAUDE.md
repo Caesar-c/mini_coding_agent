@@ -90,7 +90,18 @@ Currently implemented: `OpenAILLMProvider`, `ZhipuAILLMProvider` (lazy-imports `
 ### `src/context_manager/` — Progress Tracking & Context Compression
 
 - `tracker.py` — `ProgressTracker` + `update_plan` tool. Tracks multi-step task plans with step statuses. `_inject_progress()` in the agent loops inserts formatted summaries as system messages.
-- `context.py` — `ContextCompactor` performs rule-based message pruning when `messages[]` exceeds a threshold. Preserves head (system + first user) and tail (recent messages), compacts middle tool results.
+- `pipeline.py` — `ContextPipeline`: three-layer compression orchestrator. Drop-in replacement for `ContextCompactor`. Layers cascade cheapest-first: Layer 1 → Layer 2 → Layer 3.
+- `micro_compressor.py` — Layer 1: per-message smart truncation with tool-specific strategies (`read_file` → head+tail lines, `bash` → stderr + stdout tail, `list_directory` → entry cap). Runs eagerly via `compress_tool_result()` in `_handle_tool_call`. Includes hard cap fallback for single-line large content.
+- `meso_compressor.py` — Layer 2: groups consecutive tool-call + tool-result pairs in the middle section into `[SUMMARY]` prose. Rule-based by default (zero API cost); optional LLM mode via `CONTEXT_MESO_USE_LLM=true`. Parallel tool results matched by `tool_call_id`.
+- `macro_compressor.py` — Layer 3: full context rebuild via LLM into `[CONTEXT SUMMARY]` (Completed Work / Current State / Key Decisions). Integrates with `ProgressTracker` for task state. Falls back to system + first_user + recent on LLM failure. Only fires when Layer 2 wasn't enough.
+- `context.py` — Legacy `ContextCompactor` (kept for backward compatibility, no longer used by agent loops).
+
+### `src/skills/` — On-Demand Domain Knowledge Injection
+
+Two-layer injection model: Layer 1 places skill names + one-line descriptions in the system prompt (~100 tokens/skill, always present). Layer 2 returns full skill content via `load_skill` tool result (~2000 tokens, only when LLM calls it).
+
+- `loader.py` — `SkillLoader` scans `SKILL.md` files (YAML frontmatter + markdown body) from: custom dirs (`SKILL_DIRS` env, highest priority) → project `skills/` → user `~/.config/mini-agent/skills/`. Name collisions: last loaded wins, logged as warning.
+- `skill_tool.py` — `LOAD_SKILL_TOOL_DEFINITION` + `make_load_skill_handler()` closure. Both parent agent and subagents can call `load_skill` (registered in both main and child registries).
 
 ### `src/session/` — Multi-Session Management
 
@@ -112,6 +123,14 @@ Entry point: `cli.main:app`. Commands: `chat` (interactive), `run` (one-shot), `
 
 - **All imports must be absolute** — `from agent.tools import X`, `from llm import Y`. Relative imports (`from .foo`, `from ..bar`) are banned by ruff rule `TID252` (`ban-relative-imports = "all"`) and will fail `git commit`. The `src/` directory is a ruff source root, so imports use the package name directly (no `src.` prefix).
 - **Tests mirror source structure**: `tests/llm/` tests `src/llm/`, `tests/agent/` tests `src/agent/`. All tests require `PYTHONPATH=src`.
-- **`.env` is gitignored**; loaded via `python-dotenv` in `config.py`. Provider API keys follow `{PROVIDER_TYPE_VALUE_UPPER()}_API_KEY` convention.
+- **`.env` is gitignored**; loaded via `python-dotenv` in `config.py`. Provider API keys follow `{PROVIDER_TYPE_VALUE_UPPER()}_API_KEY` convention. Relative paths in `.env` (e.g. `LOG_FILE`) are resolved against `PROJECT_ROOT` in `config.py`.
 - **No external test runner needed** — all tests use `unittest`. Async tests use `asyncio.run()`.
 - **Logging uses `get_logger(__name__)`** — never `print()` for diagnostic output. Log content values with `%.2000s` format to cap length.
+
+## Cross-Cutting Patterns
+
+- **LLM responses with `content=None`**: OpenAI returns `content=None` alongside `tool_calls`. Assistant messages with `tool_calls` **must** be appended to `messages[]` even when content is falsy — otherwise tool results become orphaned and the API rejects the next call. Guard all `msg.get("content")` access with `or ""` (not `get("content", "")` which fails when the key exists with `None` value).
+- **Async LLM calls in agent loop**: `compact()` may invoke the LLM (Layer 3 macro compression). In `async_loop.py`, it's wrapped in `await asyncio.to_thread()` to avoid blocking the event loop. The sync `loop.py` calls it directly.
+- **Tool output compression chain**: `_handle_tool_call()` calls `context_pipeline.compress_tool_result(tool_name, output)` instead of the old prefix truncation. The pipeline's `compact()` also runs a defensive Layer 1 re-pass on any uncompressed tool messages. The old `MAX_TOOL_OUTPUT` setting is no longer read by agent loops (kept for backward compat).
+- **Progress injection cycle**: Each agent loop iteration calls `_inject_progress()` which removes old `[TASK PROGRESS]` system messages and inserts a fresh one at position 1. The `[SUMMARY]` prefix (Layer 2) and `[CONTEXT SUMMARY]` prefix (Layer 3) are **not** filtered by this — only `[TASK PROGRESS]` is.
+- **Design docs live in `plan/`**: PRDs in `plan/prd/`, detailed designs in `plan/`. Each stage (s04 subagent, s05 skill loading, s06 context compression) has both a PRD and a design doc.
