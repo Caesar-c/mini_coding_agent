@@ -9,7 +9,7 @@ from agent.loop import SYSTEM_PROMPT
 from agent.message_utils import extract_tool_calls, parse_tool_call, response_to_dict
 from agent.subagent import TASK_TOOL_DEFINITION, make_task_handler
 from config import settings
-from context_manager.context import ContextCompactor
+from context_manager.pipeline import ContextPipeline
 from context_manager.tracker import (
     UPDATE_PLAN_TOOL_DEFINITION,
     ProgressTracker,
@@ -51,9 +51,17 @@ class AsyncAgent:
 
         self.tool_registry = AsyncToolRegistry()
         self.progress_tracker = ProgressTracker()
-        self.context_compactor = ContextCompactor(
-            max_messages=settings.CONTEXT_MAX_MESSAGES,
+        self.context_pipeline = ContextPipeline(
+            micro_max_chars=settings.CONTEXT_MICRO_MAX_CHARS,
+            micro_keep_head_lines=settings.CONTEXT_MICRO_KEEP_HEAD_LINES,
+            micro_keep_tail_lines=settings.CONTEXT_MICRO_KEEP_TAIL_LINES,
+            meso_message_threshold=settings.CONTEXT_MESO_MESSAGE_THRESHOLD,
+            meso_token_threshold=settings.CONTEXT_MESO_TOKEN_THRESHOLD,
+            meso_use_llm=settings.CONTEXT_MESO_USE_LLM,
+            macro_token_threshold=settings.CONTEXT_MACRO_TOKEN_THRESHOLD,
             keep_recent=settings.CONTEXT_KEEP_RECENT,
+            llm_provider=self.llm_provider,
+            progress_tracker=self.progress_tracker,
         )
         self.display = display or SilentDisplayHandler()
 
@@ -127,11 +135,8 @@ class AsyncAgent:
 
         output = await self.tool_registry.execute(tool_name, args)
 
-        # Truncation
-        max_output = settings.MAX_TOOL_OUTPUT
-        if len(output) > max_output:
-            logger.warning("Tool output truncated: %d chars (max %d)", len(output), max_output)
-            output = output[:max_output] + f"\n... [truncated, {len(output)} chars total]"
+        # Smart compression (replaces old dumb truncation)
+        output = self.context_pipeline.compress_tool_result(tool_name, output)
 
         logger.info(
             "Tool result: %s, output_len=%d, output=%.2000s",
@@ -163,9 +168,12 @@ class AsyncAgent:
             self._inject_progress()
 
             # Context compaction
-            if self.context_compactor.should_compact(self.messages):
+            if self.context_pipeline.should_compact(self.messages):
                 before = len(self.messages)
-                self.messages = self.context_compactor.compact(self.messages)
+                # compact() may call LLM (Layer 3), so offload to worker thread
+                self.messages = await asyncio.to_thread(
+                    self.context_pipeline.compact, self.messages
+                )
                 logger.info("Context compacted: %d -> %d messages", before, len(self.messages))
 
             message = await self._call_llm()
