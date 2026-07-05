@@ -79,7 +79,12 @@ class Settings:
 
     # ---- Logging ----
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FILE: str = os.getenv("LOG_FILE", str(PROJECT_ROOT / "logs" / "mini_agent.log"))
+    _log_file_raw: str = os.getenv("LOG_FILE", str(PROJECT_ROOT / "logs" / "mini_agent.log"))
+    # Resolve relative paths against PROJECT_ROOT so the log location
+    # doesn't depend on the current working directory at startup.
+    LOG_FILE: str = (
+        _log_file_raw if os.path.isabs(_log_file_raw) else str(PROJECT_ROOT / _log_file_raw)
+    )
 
     # ---- Generic accessor (for ad-hoc env vars not declared above) ----
 
