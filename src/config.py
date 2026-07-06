@@ -77,6 +77,9 @@ class Settings:
     # ---- Sandbox ----
     SANDBOX_ROOT: str = os.getenv("SANDBOX_ROOT", ".")
 
+    # ---- Task Graph ----
+    TASK_GRAPH_DIR: str = os.getenv("TASK_GRAPH_DIR", ".mini_agent")
+
     # ---- Logging ----
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     _log_file_raw: str = os.getenv("LOG_FILE", str(PROJECT_ROOT / "logs" / "mini_agent.log"))

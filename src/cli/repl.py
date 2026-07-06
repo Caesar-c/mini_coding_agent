@@ -131,8 +131,8 @@ async def _handle_slash_command(
 
     elif cmd == "/plan":
         agent = session_manager.active
-        if agent and agent.progress_tracker.has_plan:
-            summary = agent.progress_tracker.format_summary()
+        if agent and agent.task_graph.has_plan:
+            summary = agent.task_graph.format_summary()
             display.on_progress(summary)
         else:
             display.show_info("No active plan.")
@@ -140,7 +140,7 @@ async def _handle_slash_command(
     elif cmd == "/reset":
         agent = session_manager.active
         if agent:
-            agent.progress_tracker.reset()
+            agent.task_graph.reset()
             display.show_info("Plan reset.")
         else:
             display.show_error("No active session.")
@@ -176,7 +176,7 @@ async def _handle_slash_command(
             for name in sessions:
                 agent = session_manager.get(name)
                 msg_count = len(agent.messages) if agent else 0
-                has_plan = "✓" if agent and agent.progress_tracker.has_plan else "—"
+                has_plan = "✓" if agent and agent.task_graph.has_plan else "—"
                 marker = " ← active" if name == active else ""
                 table.add_row(name + marker, str(msg_count), has_plan)
             console.print(table)

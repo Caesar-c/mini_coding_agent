@@ -8,7 +8,7 @@ Drop-in replacement for ``ContextCompactor``. Provides the same
 from context_manager.macro_compressor import MacroCompressor
 from context_manager.meso_compressor import MesoCompressor
 from context_manager.micro_compressor import MicroCompressor, estimate_tokens
-from context_manager.tracker import ProgressTracker
+from context_manager.task_graph import TaskGraphManager
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -38,7 +38,7 @@ class ContextPipeline:
         macro_token_threshold: int = 32000,
         keep_recent: int = 12,
         llm_provider=None,
-        progress_tracker: ProgressTracker | None = None,
+        task_graph: TaskGraphManager | None = None,
     ):
         self.micro = MicroCompressor(
             max_chars=micro_max_chars,
@@ -56,7 +56,7 @@ class ContextPipeline:
             token_threshold=macro_token_threshold,
             keep_recent=keep_recent,
             llm_provider=llm_provider,
-            progress_tracker=progress_tracker,
+            task_graph=task_graph,
         )
         self._stats = {
             "micro_compressions": 0,

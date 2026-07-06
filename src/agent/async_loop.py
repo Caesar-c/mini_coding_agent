@@ -10,11 +10,7 @@ from agent.message_utils import extract_tool_calls, parse_tool_call, response_to
 from agent.subagent import TASK_TOOL_DEFINITION, make_task_handler
 from config import settings
 from context_manager.pipeline import ContextPipeline
-from context_manager.tracker import (
-    UPDATE_PLAN_TOOL_DEFINITION,
-    ProgressTracker,
-    run_update_plan,
-)
+from context_manager.task_graph import ALL_TASK_GRAPH_TOOLS, TaskGraphManager
 from llm import LLMProviderType, create_llm_provider
 from logger import get_logger
 from skills import LOAD_SKILL_TOOL_DEFINITION, build_system_prompt, make_load_skill_handler
@@ -37,6 +33,7 @@ class AsyncAgent:
         self,
         llm_provider_type: LLMProviderType = None,
         display: DisplayHandler | None = None,
+        session_id: str | None = None,
     ):
         self.llm_provider = create_llm_provider(
             llm_provider_type or LLMProviderType(settings.LLM_PROVIDER)
@@ -50,7 +47,10 @@ class AsyncAgent:
         ]
 
         self.tool_registry = AsyncToolRegistry()
-        self.progress_tracker = ProgressTracker()
+        self.task_graph = TaskGraphManager(
+            sandbox_root=settings.SANDBOX_ROOT, session_id=session_id
+        )
+        self.task_graph.load()  # Restore from disk if available
         self.context_pipeline = ContextPipeline(
             micro_max_chars=settings.CONTEXT_MICRO_MAX_CHARS,
             micro_keep_head_lines=settings.CONTEXT_MICRO_KEEP_HEAD_LINES,
@@ -61,15 +61,17 @@ class AsyncAgent:
             macro_token_threshold=settings.CONTEXT_MACRO_TOKEN_THRESHOLD,
             keep_recent=settings.CONTEXT_KEEP_RECENT,
             llm_provider=self.llm_provider,
-            progress_tracker=self.progress_tracker,
+            task_graph=self.task_graph,
         )
         self.display = display or SilentDisplayHandler()
 
-        # Register the sync update_plan tool (AsyncToolRegistry handles both)
-        self.tool_registry.register(
-            UPDATE_PLAN_TOOL_DEFINITION,
-            lambda args: run_update_plan(args, self.progress_tracker),
-        )
+        # Register task graph tools — wrap sync handlers in asyncio.to_thread
+        # to avoid blocking the event loop during disk I/O (save()).
+        for definition, handler in ALL_TASK_GRAPH_TOOLS:
+            self.tool_registry.register(
+                definition,
+                self._make_async_task_graph_handler(handler),
+            )
 
         # --- Skill tool ---
         skill_handler = make_load_skill_handler(
@@ -78,13 +80,14 @@ class AsyncAgent:
         self.tool_registry.register(LOAD_SKILL_TOOL_DEFINITION, skill_handler)
 
         # --- Subagent support ---
-        # Child registry: only CHILD tools (no task, no update_plan).
+        # Child registry: only base tools (no task, no task graph tools).
         # AsyncToolRegistry() auto-registers ASYNC_ALL_TOOLS (the 6 base tools).
-        # task and update_plan are manually registered to the main registry only,
-        # so they are not in ASYNC_ALL_TOOLS. The exclude parameter is used
-        # defensively to guard against future additions to ASYNC_ALL_TOOLS
-        # that should not leak into subagents.
-        self._child_registry = AsyncToolRegistry(exclude=["task", "update_plan"])
+        # task and task graph tools are manually registered to the main registry
+        # only, so they are not in ASYNC_ALL_TOOLS. The exclude parameter is
+        # used defensively to guard against future additions.
+        self._child_registry = AsyncToolRegistry(
+            exclude=["task", "create_plan", "update_task", "add_task", "get_plan"]
+        )
         # Register load_skill to child registry (subagents can load skills too)
         self._child_registry.register(LOAD_SKILL_TOOL_DEFINITION, skill_handler)
 
@@ -93,6 +96,19 @@ class AsyncAgent:
             TASK_TOOL_DEFINITION,
             make_task_handler(self),
         )
+
+    def _make_async_task_graph_handler(self, handler):
+        """Wrap a sync task-graph handler so it runs in a worker thread.
+
+        Prevents blocking the event loop during ``save()`` disk I/O.
+        Returns an async closure compatible with :class:`AsyncToolRegistry`.
+        """
+        task_graph = self.task_graph
+
+        async def _wrapper(args):
+            return await asyncio.to_thread(handler, args, task_graph)
+
+        return _wrapper
 
     async def _call_llm(self):
         """Call LLM provider API in a worker thread and return the assistant message."""
@@ -122,8 +138,8 @@ class AsyncAgent:
                 and m["content"].startswith("[TASK PROGRESS]")
             )
         ]
-        if self.progress_tracker.has_plan:
-            summary = self.progress_tracker.format_summary()
+        if self.task_graph.has_plan:
+            summary = self.task_graph.format_summary()
             self.messages.insert(1, {"role": "system", "content": summary})
             self.display.on_progress(summary)
 

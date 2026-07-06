@@ -82,7 +82,7 @@ class TestChildRegistryHasLoadSkill(unittest.TestCase):
     """Test that child registry (for subagents) includes load_skill."""
 
     def test_child_registry_has_load_skill(self):
-        """Child registry includes load_skill but excludes task/update_plan."""
+        """Child registry includes load_skill but excludes task/task graph tools."""
         asyncio.run(self._test_child_registry())
 
     async def _test_child_registry(self):
@@ -98,7 +98,9 @@ class TestChildRegistryHasLoadSkill(unittest.TestCase):
                 make_load_skill_handler,
             )
 
-            child_registry = AsyncToolRegistry(exclude=["task", "update_plan"])
+            child_registry = AsyncToolRegistry(
+                exclude=["task", "create_plan", "update_task", "add_task", "get_plan"]
+            )
             child_registry.register(
                 LOAD_SKILL_TOOL_DEFINITION,
                 make_load_skill_handler(loader),
@@ -106,7 +108,7 @@ class TestChildRegistryHasLoadSkill(unittest.TestCase):
 
             self.assertIn("load_skill", child_registry.get_tool_names())
             self.assertNotIn("task", child_registry.get_tool_names())
-            self.assertNotIn("update_plan", child_registry.get_tool_names())
+            self.assertNotIn("create_plan", child_registry.get_tool_names())
 
             # Verify it actually works
             result = await child_registry.execute("load_skill", {"name": "integration-test"})

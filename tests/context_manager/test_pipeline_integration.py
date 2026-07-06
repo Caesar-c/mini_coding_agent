@@ -8,7 +8,7 @@ import json
 import unittest
 
 from context_manager.pipeline import ContextPipeline
-from context_manager.tracker import ProgressTracker
+from context_manager.task_graph import TaskGraphManager
 
 
 def _make_realistic_conversation(
@@ -118,25 +118,24 @@ def _make_realistic_conversation(
                 {
                     "id": "tc_plan",
                     "function": {
-                        "name": "update_plan",
+                        "name": "create_plan",
                         "arguments": json.dumps(
                             {
-                                "steps": [
+                                "tasks": [
                                     {
                                         "description": "Read files",
-                                        "status": "done",
                                     },
                                     {
                                         "description": "Run tests",
-                                        "status": "done",
+                                        "depends_on": ["T1"],
                                     },
                                     {
                                         "description": "Refactor auth",
-                                        "status": "in_progress",
+                                        "depends_on": ["T2"],
                                     },
                                     {
                                         "description": "Update docs",
-                                        "status": "pending",
+                                        "depends_on": ["T3"],
                                     },
                                 ]
                             }
@@ -203,22 +202,28 @@ class TestPipelineIntegration(unittest.TestCase):
         # not defensive micro pass (which runs inside compact()).
         self.assertGreater(stats["meso_compressions"], 0)
 
-    def test_pipeline_with_progress_tracker(self):
-        """ProgressTracker state is accessible through pipeline."""
-        tracker = ProgressTracker()
-        tracker.update_plan(
+    def test_pipeline_with_task_graph(self):
+        """TaskGraphManager state is accessible through pipeline."""
+        import tempfile
+
+        tmpdir = tempfile.mkdtemp()
+        graph = TaskGraphManager(sandbox_root=tmpdir)
+        graph.create_plan(
             [
-                {"description": "Read files", "status": "done"},
-                {"description": "Refactor", "status": "in_progress"},
+                {"description": "Read files"},
+                {"description": "Refactor", "depends_on": ["T1"]},
             ]
         )
+        graph.update_task("T1", status="in_progress")
+        graph.update_task("T1", status="done")
+        graph.update_task("T2", status="in_progress")
 
         pipeline = ContextPipeline(
             micro_max_chars=2000,
             meso_message_threshold=10,
             macro_token_threshold=999999,
             keep_recent=12,
-            progress_tracker=tracker,
+            task_graph=graph,
         )
 
         msgs = _make_realistic_conversation(keep_recent=12)
@@ -226,6 +231,10 @@ class TestPipelineIntegration(unittest.TestCase):
 
         # Pipeline should still work normally
         self.assertLess(len(result), len(msgs))
+
+        import shutil
+
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_pipeline_no_llm_still_works(self):
         """Without LLM provider, Layer 1 + Layer 2 (rule-based) work fine."""

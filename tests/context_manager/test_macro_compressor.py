@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from context_manager.macro_compressor import MacroCompressor
-from context_manager.tracker import ProgressTracker
+from context_manager.task_graph import TaskGraphManager
 
 
 def _make_messages(n_middle=30, keep_recent=12):
@@ -169,26 +169,32 @@ class TestCompress(unittest.TestCase):
         self.assertEqual(result[1]["content"], "Refactor the auth module.")
         self.assertEqual(len(result[-4:]), 4)
 
-    def test_progress_tracker_integration(self):
+    def test_task_graph_integration(self):
         mock_provider = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "[CONTEXT SUMMARY]\n## Completed Work\nDone."
         mock_response.tool_calls = []
         mock_provider.chat_completion.return_value = mock_response
 
-        tracker = ProgressTracker()
-        tracker.update_plan(
+        import tempfile
+
+        tmpdir = tempfile.mkdtemp()
+        graph = TaskGraphManager(sandbox_root=tmpdir)
+        graph.create_plan(
             [
-                {"description": "Read files", "status": "done"},
-                {"description": "Refactor", "status": "in_progress"},
+                {"description": "Read files"},
+                {"description": "Refactor", "depends_on": ["T1"]},
             ]
         )
+        graph.update_task("T1", status="in_progress")
+        graph.update_task("T1", status="done")
+        graph.update_task("T2", status="in_progress")
 
         mc = MacroCompressor(
             token_threshold=10,
             keep_recent=4,
             llm_provider=mock_provider,
-            progress_tracker=tracker,
+            task_graph=graph,
         )
         msgs = _make_messages(n_middle=20, keep_recent=4)
         result = mc.compress(msgs)
@@ -196,6 +202,10 @@ class TestCompress(unittest.TestCase):
         # Progress summary should be injected
         progress_msgs = [m for m in result if m.get("content", "").startswith("[TASK PROGRESS]")]
         self.assertGreater(len(progress_msgs), 0)
+
+        import shutil
+
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_summary_prefix_auto_added(self):
         mock_provider = MagicMock()

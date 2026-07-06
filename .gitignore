@@ -32,3 +32,6 @@ logs/
 # Claude
 .claude/
 src/logs/
+
+# Mini agent persistence
+.mini_agent/

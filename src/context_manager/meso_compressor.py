@@ -194,8 +194,17 @@ class MesoCompressor:
             return f"created dir `{args.get('path', '?')}`"
         if tool_name == "file_exists":
             return f"checked `{args.get('path', '?')}`"
-        if tool_name == "update_plan":
-            return "updated task plan"
+        if tool_name == "create_plan":
+            n = len(args.get("tasks", []))
+            return f"created plan ({n} tasks)"
+        if tool_name == "update_task":
+            tid = args.get("task_id", "?")
+            st = args.get("status", "?")
+            return f"updated {tid} to {st}"
+        if tool_name == "add_task":
+            return f"added task: {args.get('description', '?')[:50]}"
+        if tool_name == "get_plan":
+            return "checked plan"
         if tool_name == "load_skill":
             return f"loaded skill `{args.get('name', '?')}`"
         return f"called {tool_name}"

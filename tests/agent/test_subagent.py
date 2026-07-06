@@ -117,7 +117,10 @@ class TestSubagentNoTaskTool(unittest.TestCase):
         registry = AsyncToolRegistry()
         tool_names = [d["function"]["name"] for d in registry.definitions]
         self.assertNotIn("task", tool_names)
-        self.assertNotIn("update_plan", tool_names)
+        self.assertNotIn("create_plan", tool_names)
+        self.assertNotIn("update_task", tool_names)
+        self.assertNotIn("add_task", tool_names)
+        self.assertNotIn("get_plan", tool_names)
 
 
 class TestSubagentIterationLimit(unittest.TestCase):
@@ -235,7 +238,7 @@ class TestEmptyPromptRejected(unittest.TestCase):
 
 
 class TestChildRegistryHasNoTask(unittest.TestCase):
-    """_child_registry does not contain task or update_plan tools."""
+    """_child_registry does not contain task or task graph tools."""
 
     def test_child_registry_excludes_parent_tools(self):
         from agent.async_tool_registry import AsyncToolRegistry
@@ -244,7 +247,10 @@ class TestChildRegistryHasNoTask(unittest.TestCase):
         tool_names = registry.get_tool_names()
 
         self.assertNotIn("task", tool_names)
-        self.assertNotIn("update_plan", tool_names)
+        self.assertNotIn("create_plan", tool_names)
+        self.assertNotIn("update_task", tool_names)
+        self.assertNotIn("add_task", tool_names)
+        self.assertNotIn("get_plan", tool_names)
 
 
 class TestChildRegistryHasChildTools(unittest.TestCase):

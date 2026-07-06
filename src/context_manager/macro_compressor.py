@@ -46,12 +46,12 @@ class MacroCompressor:
         token_threshold: int = 32000,
         keep_recent: int = 12,
         llm_provider=None,
-        progress_tracker=None,
+        task_graph=None,
     ):
         self.token_threshold = token_threshold
         self.keep_recent = keep_recent
         self.llm_provider = llm_provider
-        self.progress_tracker = progress_tracker
+        self.task_graph = task_graph
 
     def should_compress(self, messages: list[dict]) -> bool:
         """Check if total context exceeds the macro threshold.
@@ -81,13 +81,13 @@ class MacroCompressor:
             "Macro compress start: %d messages, history_digest=%d chars, has_tracker=%s",
             len(messages),
             len(history_text),
-            bool(self.progress_tracker and self.progress_tracker.has_plan),
+            bool(self.task_graph and self.task_graph.has_plan),
         )
 
-        # Add ProgressTracker context
+        # Add TaskGraph context
         progress_context = ""
-        if self.progress_tracker and self.progress_tracker.has_plan:
-            progress_context = f"\n\nCurrent task plan:\n{self.progress_tracker.format_summary()}"
+        if self.task_graph and self.task_graph.has_plan:
+            progress_context = f"\n\nCurrent task plan:\n{self.task_graph.format_summary()}"
 
         # Call LLM
         try:
@@ -118,12 +118,12 @@ class MacroCompressor:
         if len(messages) > 1 and messages[1].get("role") == "user":
             result.append(messages[1])
 
-        # Inject progress if tracker active
-        if self.progress_tracker and self.progress_tracker.has_plan:
+        # Inject progress if task graph active
+        if self.task_graph and self.task_graph.has_plan:
             result.append(
                 {
                     "role": "system",
-                    "content": self.progress_tracker.format_summary(),
+                    "content": self.task_graph.format_summary(),
                 }
             )
 

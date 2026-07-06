@@ -6,11 +6,7 @@ from agent.message_utils import extract_tool_calls, parse_tool_call, response_to
 from agent.tool_registry import ToolRegistry
 from config import settings
 from context_manager.pipeline import ContextPipeline
-from context_manager.tracker import (
-    UPDATE_PLAN_TOOL_DEFINITION,
-    ProgressTracker,
-    run_update_plan,
-)
+from context_manager.task_graph import ALL_TASK_GRAPH_TOOLS, TaskGraphManager
 from llm import LLMProviderType, create_llm_provider
 from logger import get_logger
 from skills import LOAD_SKILL_TOOL_DEFINITION, build_system_prompt, make_load_skill_handler
@@ -22,16 +18,19 @@ You are a helpful coding assistant. You can execute bash commands and use variou
 file operation tools to accomplish tasks. Use the appropriate tools for file operations. \
 Think step by step, and explain what you're doing before and after each command.
 
-For multi-step tasks, use the update_plan tool to create a plan with numbered steps. \
-Update the plan as you complete each step by marking it "done" and moving the next \
-step to "in_progress". If the user corrects your plan or asks you to change steps, \
-call update_plan with the revised step list. This keeps you on track for long tasks."""
+For multi-step tasks, use create_plan to define tasks and their dependencies. \
+Mark tasks 'in_progress' when you start them and 'done' when finished using \
+update_task. Tasks with all dependencies completed will automatically become \
+'ready' — prioritize these. Use get_plan to check overall progress. You can \
+add_task if you discover new work mid-execution. This keeps you on track for \
+long tasks."""
 
 
 class Agent:
     def __init__(
         self,
         llm_provider_type: LLMProviderType = None,
+        session_id: str | None = None,
     ):
         # Create the LLM provider based on type
         self.llm_provider = create_llm_provider(
@@ -48,8 +47,11 @@ class Agent:
         # Initialize the tool registry
         self.tool_registry = ToolRegistry()
 
-        # Progress tracking and context management
-        self.progress_tracker = ProgressTracker()
+        # Task graph and context management
+        self.task_graph = TaskGraphManager(
+            sandbox_root=settings.SANDBOX_ROOT, session_id=session_id
+        )
+        self.task_graph.load()  # Restore from disk if available
         self.context_pipeline = ContextPipeline(
             micro_max_chars=settings.CONTEXT_MICRO_MAX_CHARS,
             micro_keep_head_lines=settings.CONTEXT_MICRO_KEEP_HEAD_LINES,
@@ -60,14 +62,15 @@ class Agent:
             macro_token_threshold=settings.CONTEXT_MACRO_TOKEN_THRESHOLD,
             keep_recent=settings.CONTEXT_KEEP_RECENT,
             llm_provider=self.llm_provider,
-            progress_tracker=self.progress_tracker,
+            task_graph=self.task_graph,
         )
 
-        # Register the update_plan tool with a closure bound to this agent's tracker
-        self.tool_registry.register(
-            UPDATE_PLAN_TOOL_DEFINITION,
-            lambda args: run_update_plan(args, self.progress_tracker),
-        )
+        # Register task graph tools
+        for definition, handler in ALL_TASK_GRAPH_TOOLS:
+            self.tool_registry.register(
+                definition,
+                lambda args, h=handler: h(args, self.task_graph),
+            )
 
         # --- Skill tool ---
         self.tool_registry.register(
@@ -100,8 +103,8 @@ class Agent:
             )
         ]
         # Inject fresh progress if a plan exists
-        if self.progress_tracker.has_plan:
-            summary = self.progress_tracker.format_summary()
+        if self.task_graph.has_plan:
+            summary = self.task_graph.format_summary()
             self.messages.insert(1, {"role": "system", "content": summary})
 
     def _handle_tool_call(self, tool_call):

@@ -35,6 +35,7 @@ class SessionManager:
         """
         if name in self._sessions:
             raise ValueError(f"Session '{name}' already exists.")
+        kwargs.setdefault("session_id", name)
         agent = AsyncAgent(**kwargs)
         self._sessions[name] = agent
         self._active = name

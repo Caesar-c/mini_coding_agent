@@ -82,11 +82,21 @@ class RichDisplayHandler:
             if line.startswith("Next:"):
                 self.console.print(f"[cyan]{line}[/cyan]")
                 continue
-            # Parse step lines like "✓ [1/5] Description"
-            if len(line) >= 2 and line[0] in ("✓", "→", "○", "⊘"):
+            if line.startswith("Ready:"):
+                self.console.print(f"[yellow]{line}[/yellow]")
+                continue
+            # Parse step lines like "✓ T1: Description" or "✓ [1/5] Description"
+            if len(line) >= 2 and line[0] in ("✓", "✗", "→", "◉", "○", "⊘"):
                 icon = line[0]
                 rest = line[2:]
-                style_map = {"✓": "green", "→": "cyan", "○": "dim", "⊘": "red"}
+                style_map = {
+                    "✓": "green",
+                    "✗": "red",
+                    "→": "cyan",
+                    "◉": "bold yellow",
+                    "○": "dim",
+                    "⊘": "dim magenta",
+                }
                 color = style_map.get(icon, "white")
                 table.add_row(f"[{color}]{icon}[/{color}]", rest)
             else:
