@@ -12,7 +12,7 @@ class SessionManager:
     """Manages multiple concurrent chat sessions.
 
     Each session is a named :class:`AsyncAgent` instance with its own
-    conversation history, progress tracker, and context state. Users
+    conversation history, task graph, and context state. Users
     can create, switch between, and list sessions.
     """
 

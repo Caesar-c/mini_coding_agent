@@ -1,7 +1,7 @@
 """Factory for creating LLM provider instances.
 
 This module centralises provider instantiation so that consumers (e.g.
-:class:`agent.loop.Agent`) only need to know about the high-level
+:class:`agent.async_loop.AsyncAgent`) only need to know about the high-level
 :class:`LLMProviderType` enum. New providers can be added by:
 
 1. Implementing :class:`llm.interface.LLMProvider` in a new module

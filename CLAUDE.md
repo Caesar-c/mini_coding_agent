@@ -14,9 +14,6 @@ PYTHONPATH=src .venv/bin/python -m cli.main chat          # interactive REPL
 PYTHONPATH=src .venv/bin/python -m cli.main run "task"    # one-shot execution
 # Or if installed: mini-agent chat / mini-agent run "task"
 
-# Run the minimal sync REPL (no CLI framework)
-PYTHONPATH=src .venv/bin/python -m agent.loop
-
 # Run all tests (stdlib unittest, no pytest required)
 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -t . -v
 
@@ -54,14 +51,13 @@ The code lives under `src/` and is organized into these packages:
 
 ### `src/agent/` — Agent Loop, Tool System & Subagent
 
-The core execution engine. Two agent variants share the same tool infrastructure:
+The core execution engine:
 
-- **`loop.py`** — `Agent` (sync): ReAct-style loop with sequential tool execution. Used for the minimal REPL.
-- **`async_loop.py`** — `AsyncAgent` (async): Same loop with concurrent tool execution via `asyncio.gather` and `DisplayHandler` for Rich terminal output. **This is the primary production path** used by the CLI.
+- **`async_loop.py`** — `AsyncAgent`: Agent loop with concurrent tool execution via `asyncio.gather` and `DisplayHandler` for Rich terminal output. This is the primary production path used by the CLI.
 - **`subagent.py`** — Context-isolated subtask execution. The `task` tool spawns a subagent with a fresh `messages[]` list; only the final text summary is returned to the parent. Subagents cannot recursively spawn (no `task` tool in child registry).
-- **`message_utils.py`** — Shared helpers (`response_to_dict`, `extract_tool_calls`, `parse_tool_call`, `tc_attr`) used by all three agent variants. Eliminates 3-way duplication of LLM response handling.
+- **`message_utils.py`** — Shared helpers (`response_to_dict`, `extract_tool_calls`, `parse_tool_call`, `tc_attr`) used by `async_loop` and `subagent`. Eliminates duplication of LLM response handling.
 - **`tools.py`** / **`async_tools.py`** — Tool definitions (OpenAI function-calling JSON schemas) and handlers. `tools.py` has sync handlers; `async_tools.py` wraps them with `asyncio.to_thread` (file ops) or `create_subprocess_shell` (bash).
-- **`tool_registry.py`** / **`async_tool_registry.py`** — Maps tool names to handlers. `AsyncToolRegistry` detects coroutine returns and awaits them transparently, allowing sync and async handlers to coexist. Accepts an `exclude` parameter to filter auto-registered tools.
+- **`async_tool_registry.py`** — Maps tool names to handlers. `AsyncToolRegistry` detects coroutine returns and awaits them transparently, allowing sync and async handlers to coexist. Accepts an `exclude` parameter to filter auto-registered tools.
 - **`path_sandbox.py`** — `PathSandbox` enforces that all file operations stay inside a root directory via path resolution + `relative_to()` containment check.
 - **`display.py`** — `DisplayHandler` protocol for terminal output rendering (Rich). `SilentDisplayHandler` is the no-op default.
 
@@ -69,7 +65,7 @@ The core execution engine. Two agent variants share the same tool infrastructure
 1. Add a `TOOL_DEFINITION` dict (OpenAI function-calling schema) and handler function in `tools.py`.
 2. Append `(definition, handler)` to `ALL_TOOLS` in `tools.py`.
 3. If the tool needs async execution, add an async wrapper in `async_tools.py` and append to `ASYNC_ALL_TOOLS`.
-4. No changes to the agent loops or registries are needed — they auto-load from these lists.
+4. No changes to the agent loop or registry are needed — they auto-load from these lists.
 
 **Adding a new provider:**
 1. Create `src/llm/<provider>_provider.py` with a class inheriting `LLMProvider`.
@@ -87,13 +83,13 @@ Decouples the agent loop from any specific LLM vendor:
 
 Currently implemented: `OpenAILLMProvider`, `ZhipuAILLMProvider` (lazy-imports `zhipuai` SDK).
 
-### `src/context_manager/` — Progress Tracking & Context Compression
+### `src/context_manager/` — Task Graph & Context Compression
 
-- `tracker.py` — `ProgressTracker` + `update_plan` tool. Tracks multi-step task plans with step statuses. `_inject_progress()` in the agent loops inserts formatted summaries as system messages.
+- `task_graph.py` — `TaskGraphManager` + 4 tools (`create_plan`, `update_task`, `add_task`, `get_plan`). DAG-based task planning with dependency tracking, cycle detection, and JSON persistence. Tasks auto-transition to `ready` when all dependencies are satisfied (`done` or `skipped`). Persistence is session-scoped via `session_id` and anchored to `PROJECT_ROOT`. `_inject_progress()` in the agent loop inserts formatted `[TASK PROGRESS]` summaries as system messages.
 - `pipeline.py` — `ContextPipeline`: three-layer compression orchestrator. Drop-in replacement for `ContextCompactor`. Layers cascade cheapest-first: Layer 1 → Layer 2 → Layer 3.
 - `micro_compressor.py` — Layer 1: per-message smart truncation with tool-specific strategies (`read_file` → head+tail lines, `bash` → stderr + stdout tail, `list_directory` → entry cap). Runs eagerly via `compress_tool_result()` in `_handle_tool_call`. Includes hard cap fallback for single-line large content.
 - `meso_compressor.py` — Layer 2: groups consecutive tool-call + tool-result pairs in the middle section into `[SUMMARY]` prose. Rule-based by default (zero API cost); optional LLM mode via `CONTEXT_MESO_USE_LLM=true`. Parallel tool results matched by `tool_call_id`.
-- `macro_compressor.py` — Layer 3: full context rebuild via LLM into `[CONTEXT SUMMARY]` (Completed Work / Current State / Key Decisions). Integrates with `ProgressTracker` for task state. Falls back to system + first_user + recent on LLM failure. Only fires when Layer 2 wasn't enough.
+- `macro_compressor.py` — Layer 3: full context rebuild via LLM into `[CONTEXT SUMMARY]` (Completed Work / Current State / Key Decisions). Integrates with `TaskGraphManager` for task state. Falls back to system + first_user + recent on LLM failure. Only fires when Layer 2 wasn't enough.
 - `context.py` — Legacy `ContextCompactor` (kept for backward compatibility, no longer used by agent loops).
 
 ### `src/skills/` — On-Demand Domain Knowledge Injection
@@ -130,7 +126,7 @@ Entry point: `cli.main:app`. Commands: `chat` (interactive), `run` (one-shot), `
 ## Cross-Cutting Patterns
 
 - **LLM responses with `content=None`**: OpenAI returns `content=None` alongside `tool_calls`. Assistant messages with `tool_calls` **must** be appended to `messages[]` even when content is falsy — otherwise tool results become orphaned and the API rejects the next call. Guard all `msg.get("content")` access with `or ""` (not `get("content", "")` which fails when the key exists with `None` value).
-- **Async LLM calls in agent loop**: `compact()` may invoke the LLM (Layer 3 macro compression). In `async_loop.py`, it's wrapped in `await asyncio.to_thread()` to avoid blocking the event loop. The sync `loop.py` calls it directly.
-- **Tool output compression chain**: `_handle_tool_call()` calls `context_pipeline.compress_tool_result(tool_name, output)` instead of the old prefix truncation. The pipeline's `compact()` also runs a defensive Layer 1 re-pass on any uncompressed tool messages. The old `MAX_TOOL_OUTPUT` setting is no longer read by agent loops (kept for backward compat).
+- **Async LLM calls in agent loop**: `compact()` may invoke the LLM (Layer 3 macro compression). In `async_loop.py`, it's wrapped in `await asyncio.to_thread()` to avoid blocking the event loop.
+- **Tool output compression chain**: `_handle_tool_call()` calls `context_pipeline.compress_tool_result(tool_name, output)` instead of the old prefix truncation. The pipeline's `compact()` also runs a defensive Layer 1 re-pass on any uncompressed tool messages. The old `MAX_TOOL_OUTPUT` setting is no longer read by the agent loop (kept for backward compat).
 - **Progress injection cycle**: Each agent loop iteration calls `_inject_progress()` which removes old `[TASK PROGRESS]` system messages and inserts a fresh one at position 1. The `[SUMMARY]` prefix (Layer 2) and `[CONTEXT SUMMARY]` prefix (Layer 3) are **not** filtered by this — only `[TASK PROGRESS]` is.
-- **Design docs live in `plan/`**: PRDs in `plan/prd/`, detailed designs in `plan/`. Each stage (s04 subagent, s05 skill loading, s06 context compression) has both a PRD and a design doc.
+- **Design docs live in `plan/`**: PRDs in `plan/prd/`, detailed designs in `plan/`. Each stage (s04 subagent, s05 skill loading, s06 context compression, s07 persistent task graph) has both a PRD and a design doc.

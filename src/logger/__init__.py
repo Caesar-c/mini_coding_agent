@@ -69,7 +69,7 @@ def get_logger(name: str) -> logging.Logger:
     """Return a named logger.
 
     Typically called as ``get_logger(__name__)`` so the logger name
-    mirrors the module hierarchy (e.g. ``agent.loop``, ``llm.factory``).
+    mirrors the module hierarchy (e.g. ``agent.async_loop``, ``llm.factory``).
 
     If :func:`setup_logging` has not been called yet, it is invoked
     automatically using settings from ``config.py`` (log level and file

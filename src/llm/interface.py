@@ -9,7 +9,7 @@ class LLMProvider(ABC):
 
     All LLM provider implementations must subclass this and implement
     :meth:`chat_completion`. This guarantees a uniform contract so the
-    :class:`agent.loop.Agent` can drive any provider interchangeably.
+    :class:`agent.async_loop.AsyncAgent` can drive any provider interchangeably.
     """
 
     @abstractmethod

@@ -14,7 +14,7 @@ class AsyncToolRegistry:
 
     When ``execute`` is called, it detects whether the handler returned
     a coroutine and awaits it if so. This allows sync handlers like
-    ``run_update_plan`` to coexist with async handlers like ``async_run_bash``.
+    ``run_create_plan`` to coexist with async handlers like ``async_run_bash``.
     """
 
     def __init__(self, exclude: list[str] | None = None):

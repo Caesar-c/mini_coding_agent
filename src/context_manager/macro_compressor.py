@@ -78,7 +78,7 @@ class MacroCompressor:
         # Build condensed history for LLM
         history_text = self._build_history_digest(messages[1 : len(messages) - self.keep_recent])
         logger.info(
-            "Macro compress start: %d messages, history_digest=%d chars, has_tracker=%s",
+            "Macro compress start: %d messages, history_digest=%d chars, has_task_graph=%s",
             len(messages),
             len(history_text),
             bool(self.task_graph and self.task_graph.has_plan),

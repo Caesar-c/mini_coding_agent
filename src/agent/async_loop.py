@@ -5,7 +5,6 @@ import time
 
 from agent.async_tool_registry import AsyncToolRegistry
 from agent.display import DisplayHandler, SilentDisplayHandler
-from agent.loop import SYSTEM_PROMPT
 from agent.message_utils import extract_tool_calls, parse_tool_call, response_to_dict
 from agent.subagent import TASK_TOOL_DEFINITION, make_task_handler
 from config import settings
@@ -17,11 +16,23 @@ from skills import LOAD_SKILL_TOOL_DEFINITION, build_system_prompt, make_load_sk
 
 logger = get_logger(__name__)
 
+SYSTEM_PROMPT = """\
+You are a helpful coding assistant. You can execute bash commands and use various \
+file operation tools to accomplish tasks. Use the appropriate tools for file operations. \
+Think step by step, and explain what you're doing before and after each command.
+
+For multi-step tasks, use create_plan to define tasks and their dependencies. \
+Mark tasks 'in_progress' when you start them and 'done' when finished using \
+update_task. Tasks with all dependencies completed will automatically become \
+'ready' — prioritize these. Use get_plan to check overall progress. You can \
+add_task if you discover new work mid-execution. This keeps you on track for \
+long tasks."""
+
 
 class AsyncAgent:
-    """Async version of the agent loop with concurrent tool execution.
+    """Async agent loop with concurrent tool execution.
 
-    Key differences from the sync :class:`agent.loop.Agent`:
+    Features:
     - ``chat()`` is ``async`` — uses ``await`` for LLM calls and tool execution
     - Multiple tool calls from a single LLM response are executed concurrently
       via ``asyncio.gather``

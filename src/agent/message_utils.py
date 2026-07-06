@@ -1,8 +1,8 @@
 """Shared helpers for converting LLM responses and parsing tool calls.
 
-Eliminates duplication across ``agent.loop``, ``agent.async_loop``, and
-``agent.subagent`` — all three process LLM responses with the same
-message-formatting and tool-call extraction logic.
+Eliminates duplication across ``agent.async_loop`` and ``agent.subagent``
+— both process LLM responses with the same message-formatting and
+tool-call extraction logic.
 """
 
 import json
