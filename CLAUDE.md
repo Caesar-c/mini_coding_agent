@@ -71,7 +71,8 @@ The core execution engine:
 1. Create `src/llm/<provider>_provider.py` with a class inheriting `LLMProvider`.
 2. Add an enum value to `LLMProviderType` in `factory.py`.
 3. Add an `elif` branch in `create_llm_provider()`.
-4. Optionally re-export from `src/llm/__init__.py`.
+4. Add the provider's required env vars to `_REQUIRED_ENV` in `factory.py` (enables pre-flight API key validation with friendly error messages).
+5. Optionally re-export from `src/llm/__init__.py`.
 
 ### `src/llm/` — Pluggable LLM Provider System
 

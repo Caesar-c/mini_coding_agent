@@ -10,7 +10,7 @@ from agent.subagent import TASK_TOOL_DEFINITION, make_task_handler
 from config import settings
 from context_manager.pipeline import ContextPipeline
 from context_manager.task_graph import ALL_TASK_GRAPH_TOOLS, TaskGraphManager
-from llm import LLMProviderType, create_llm_provider
+from llm import LLMProviderType, MissingAPIKeyError, create_llm_provider
 from logger import get_logger
 from skills import LOAD_SKILL_TOOL_DEFINITION, build_system_prompt, make_load_skill_handler
 
@@ -46,9 +46,20 @@ class AsyncAgent:
         display: DisplayHandler | None = None,
         session_id: str | None = None,
     ):
-        self.llm_provider = create_llm_provider(
-            llm_provider_type or LLMProviderType(settings.LLM_PROVIDER)
-        )
+        """Initialise the async agent.
+
+        Raises:
+            MissingAPIKeyError: If the required API key for the chosen
+                provider is not configured.  Callers should catch this
+                and present the error message to the user.
+        """
+        try:
+            self.llm_provider = create_llm_provider(
+                llm_provider_type or LLMProviderType(settings.LLM_PROVIDER)
+            )
+        except MissingAPIKeyError:
+            logger.error("LLM provider configuration missing")
+            raise
 
         # --- Skill loading ---
         enhanced_prompt, self.skill_loader = build_system_prompt(SYSTEM_PROMPT)

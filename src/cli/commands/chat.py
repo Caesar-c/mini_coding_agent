@@ -5,7 +5,7 @@ import sys
 from cli.display import RichDisplayHandler
 from cli.repl import run_repl
 from config import settings
-from llm.factory import LLMProviderType, MissingAPIKeyError, create_llm_provider
+from llm.factory import LLMProviderType, MissingAPIKeyError, validate_provider_config
 from logger import get_logger
 from session.manager import SessionManager
 
@@ -36,7 +36,7 @@ async def async_chat(
 
     # Pre-flight: check API key before entering REPL
     try:
-        create_llm_provider(provider_type)
+        validate_provider_config(provider_type)
     except MissingAPIKeyError as e:
         from rich.console import Console
 

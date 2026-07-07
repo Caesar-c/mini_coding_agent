@@ -32,6 +32,8 @@ class SessionManager:
 
         Raises:
             ValueError: If a session with this name already exists.
+            MissingAPIKeyError: If the LLM provider's API key is not
+                configured (propagated from :class:`AsyncAgent`).
         """
         if name in self._sessions:
             raise ValueError(f"Session '{name}' already exists.")

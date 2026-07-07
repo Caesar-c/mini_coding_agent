@@ -5,7 +5,7 @@ import sys
 from agent.async_loop import AsyncAgent
 from cli.display import RichDisplayHandler
 from config import settings
-from llm.factory import LLMProviderType, MissingAPIKeyError, create_llm_provider
+from llm.factory import LLMProviderType, MissingAPIKeyError, validate_provider_config
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -33,7 +33,7 @@ async def async_run(
 
     # Pre-flight: check API key before creating agent
     try:
-        create_llm_provider(provider_type)
+        validate_provider_config(provider_type)
     except MissingAPIKeyError as e:
         from rich.console import Console
 
