@@ -1,9 +1,11 @@
 """Chat command — interactive REPL session."""
 
+import sys
+
 from cli.display import RichDisplayHandler
 from cli.repl import run_repl
 from config import settings
-from llm.factory import LLMProviderType
+from llm.factory import LLMProviderType, MissingAPIKeyError, create_llm_provider
 from logger import get_logger
 from session.manager import SessionManager
 
@@ -31,6 +33,15 @@ async def async_chat(
     except ValueError:
         provider_type = LLMProviderType(settings.LLM_PROVIDER)
         provider_name = settings.LLM_PROVIDER
+
+    # Pre-flight: check API key before entering REPL
+    try:
+        create_llm_provider(provider_type)
+    except MissingAPIKeyError as e:
+        from rich.console import Console
+
+        Console(stderr=True).print(f"[bold red]配置错误[/bold red]\n{e}")
+        sys.exit(1)
 
     display = RichDisplayHandler()
     resolved_model = model

@@ -1,9 +1,11 @@
 """Run command — single-shot non-interactive task execution."""
 
+import sys
+
 from agent.async_loop import AsyncAgent
 from cli.display import RichDisplayHandler
 from config import settings
-from llm.factory import LLMProviderType
+from llm.factory import LLMProviderType, MissingAPIKeyError, create_llm_provider
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -28,6 +30,15 @@ async def async_run(
         provider_type = LLMProviderType(provider_name)
     except ValueError:
         provider_type = LLMProviderType(settings.LLM_PROVIDER)
+
+    # Pre-flight: check API key before creating agent
+    try:
+        create_llm_provider(provider_type)
+    except MissingAPIKeyError as e:
+        from rich.console import Console
+
+        Console(stderr=True).print(f"[bold red]配置错误[/bold red]\n{e}")
+        sys.exit(1)
 
     display = RichDisplayHandler()
     agent = AsyncAgent(llm_provider_type=provider_type, display=display)
