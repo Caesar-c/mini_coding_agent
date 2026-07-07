@@ -9,9 +9,13 @@ Usage::
     print(settings.get("SOME_OTHER_VAR", "default"))
 
 Each class attribute name mirrors the underlying environment variable name
-(e.g. ``OPENAI_BASE_URL`` -> ``settings.OPENAI_BASE_URL``). The ``.env``
-file at the project root (parent of ``src/``) is loaded once when this
-module is first imported.
+(e.g. ``OPENAI_BASE_URL`` -> ``settings.OPENAI_BASE_URL``).
+
+The ``.env`` file is searched in multiple locations (first match wins):
+
+1. Current working directory (``./.env``) — for installed / packaged usage.
+2. ``~/.config/mini-agent/.env`` — user-global config.
+3. Project root (parent of ``src/``) — for development.
 
 :data:`settings` is a process-wide singleton: ``Settings()`` always
 returns the same instance.
@@ -20,13 +24,23 @@ returns the same instance.
 import os
 from pathlib import Path
 
-# Load .env from project root (one level above src/). Only the first call
-# mutates the process env; subsequent imports are cheap no-ops.
+# ── .env 搜索顺序 ──────────────────────────────────────────────
+# 开发时 PROJECT_ROOT 指向仓库根目录；安装/打包后指向 site-packages 上层，
+# 所以把 cwd 和用户配置目录放在更前面。
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_ENV_SEARCH_PATHS = [
+    Path.cwd() / ".env",
+    Path.home() / ".config" / "mini-agent" / ".env",
+    PROJECT_ROOT / ".env",
+]
+
 try:
     from dotenv import load_dotenv
 
-    load_dotenv(PROJECT_ROOT / ".env")
+    for _env_path in _ENV_SEARCH_PATHS:
+        if _env_path.is_file():
+            load_dotenv(_env_path)
+            break  # 找到第一个即加载，不覆盖后续
 except ImportError:  # python-dotenv is optional; fall back to raw env
     pass
 
@@ -88,6 +102,8 @@ class Settings:
     LOG_FILE: str = (
         _log_file_raw if os.path.isabs(_log_file_raw) else str(PROJECT_ROOT / _log_file_raw)
     )
+
+    # ---- Generic accessor (for ad-hoc env vars not declared above) ----
 
     # ---- Generic accessor (for ad-hoc env vars not declared above) ----
 
