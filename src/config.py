@@ -37,10 +37,14 @@ _ENV_SEARCH_PATHS = [
 try:
     from dotenv import load_dotenv
 
+    # 按优先级从高到低加载所有找到的 .env 文件。
+    # override=False（默认值）确保先加载的文件优先：
+    # cwd 的变量 > ~/.config 的变量 > PROJECT_ROOT 的变量。
+    # 这样即使 cwd/.env 缺少某些变量（如 API key），
+    # ~/.config/mini-agent/.env 或 PROJECT_ROOT/.env 中的值仍会被加载。
     for _env_path in _ENV_SEARCH_PATHS:
         if _env_path.is_file():
-            load_dotenv(_env_path)
-            break  # 找到第一个即加载，不覆盖后续
+            load_dotenv(_env_path, override=False)
 except ImportError:  # python-dotenv is optional; fall back to raw env
     pass
 
@@ -107,16 +111,29 @@ class Settings:
 
     # ---- Generic accessor (for ad-hoc env vars not declared above) ----
 
+    # 显式映射：provider type value → 对应的 Settings 属性名。
+    # 仅用于不符合 {TYPE.upper()}_API_KEY 命名约定的情况。
+    _API_KEY_ATTR: dict[str, str] = {
+        "openai": "OPENAI_API_KEY",
+        "zhipu_ai": "ZHIPU_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+    }
+
     def get(self, name: str, default: str | None = None) -> str | None:
         """Read an arbitrary env var. Useful for one-off lookups."""
         return os.getenv(name, default)
 
     def api_key_for(self, provider_type_value: str) -> str:
-        """Resolve the API key for a provider type by convention.
+        """Resolve the API key for a provider type.
 
-        Looks up ``{PROVIDER_TYPE_VALUE.upper()}_API_KEY``.
-        E.g. ``api_key_for("openai")`` returns ``OPENAI_API_KEY``.
+        Uses an explicit mapping when available, falling back to the
+        convention ``{PROVIDER_TYPE_VALUE.upper()}_API_KEY``.
+        E.g. ``api_key_for("openai")`` returns ``OPENAI_API_KEY``,
+        ``api_key_for("zhipu_ai")`` returns ``ZHIPU_API_KEY``.
         """
+        attr = self._API_KEY_ATTR.get(provider_type_value)
+        if attr:
+            return getattr(self, attr, "") or ""
         return os.getenv(f"{provider_type_value.upper()}_API_KEY") or ""
 
 
