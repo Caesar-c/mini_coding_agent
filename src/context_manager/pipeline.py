@@ -87,11 +87,12 @@ class ContextPipeline:
         """
         return self.meso.should_compress(messages) or self.macro.should_compress(messages)
 
-    def compact(self, messages: list[dict]) -> list[dict]:
+    async def compact(self, messages: list[dict]) -> list[dict]:
         """Run the full compression pipeline.
 
         Cascade: Layer 1 (defensive re-pass) → Layer 2 → Layer 3.
-        Each layer only runs if its threshold is met.
+        Each layer only runs if its threshold is met. Async because Layer 2/3
+        may call the (async) LLM provider.
         """
         original_count = len(messages)
         original_tokens = sum(estimate_tokens(m.get("content") or "") for m in messages)
@@ -112,7 +113,7 @@ class ContextPipeline:
         # Layer 2: section-level compression
         if self.meso.should_compress(result):
             before = len(result)
-            result = self.meso.compress(result)
+            result = await self.meso.compress(result)
             if len(result) < before:
                 self._stats["meso_compressions"] += 1
                 logger.info("Layer 2 (Meso): %d -> %d messages", before, len(result))
@@ -120,7 +121,7 @@ class ContextPipeline:
         # Layer 3: full context rebuild (only if still too large)
         if self.macro.should_compress(result):
             before = len(result)
-            result = self.macro.compress(result)
+            result = await self.macro.compress(result)
             if len(result) < before:
                 self._stats["macro_compressions"] += 1
                 logger.info("Layer 3 (Macro): %d -> %d messages", before, len(result))

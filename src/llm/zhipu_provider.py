@@ -1,9 +1,12 @@
 """Zhipu AI (智谱) LLM Provider Implementation.
 
-Uses the official ``zhipuai`` SDK when available, falling back to a graceful
-error if the SDK is not installed.
+Uses the official ``zhipuai`` SDK (via ``zai``) when available, falling back
+to a graceful error if the SDK is not installed. The ``zai`` client is
+synchronous, so ``chat_completion`` is exposed as ``async`` for a uniform
+contract with other providers but delegates to a worker thread internally.
 """
 
+import asyncio
 from typing import Any
 
 from zai import ZhipuAiClient
@@ -17,13 +20,14 @@ logger = get_logger(__name__)
 class ZhipuAILLMProvider(LLMProvider):
     """LLM provider for the Zhipu AI (智谱清言) API.
 
-    The provider lazily imports the ``zhipuai`` SDK so that it is only
-    required at runtime when this provider is actually used.
+    The ``zai`` SDK does not expose a confirmed async client, so the
+    underlying synchronous call is offloaded via :func:`asyncio.to_thread`.
+    The provider still satisfies the async ``chat_completion`` contract.
     """
 
     def __init__(self, api_key: str = None, model: str = None):
         if not api_key:
-            raise ValueError("ZHIPU API KEY must not be NULL.")
+            raise ValueError("api_key must not be null.")
         self.api_key = api_key
         self.model = model
         self._client = None
@@ -34,7 +38,7 @@ class ZhipuAILLMProvider(LLMProvider):
             self._client = ZhipuAiClient(api_key=self.api_key)
         return self._client
 
-    def chat_completion(
+    async def chat_completion(
         self,
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]] | None = None,
@@ -49,15 +53,41 @@ class ZhipuAILLMProvider(LLMProvider):
         Args:
             messages: List of message dictionaries with ``role`` and ``content``.
             tools: Optional list of tool definitions.
-            model: Model identifier (default: ``glm-4.7-flash``).
+            thinking: Enable deep-thinking mode (default True).
             max_tokens: Maximum number of tokens to generate.
             temperature: Sampling temperature.
+            stream: If True (default), accumulate streamed chunks.
             **kwargs: Additional parameters forwarded to the API.
 
         Returns:
             :class:`MessageWrapper` containing the provider response.
+
+        Raises:
+            The underlying SDK exception on failure — errors are NOT swallowed
+            into a fake assistant message.
         """
-        api_params = {
+        return await asyncio.to_thread(
+            self._do_sync_completion,
+            messages,
+            tools,
+            thinking,
+            max_tokens,
+            temperature,
+            stream,
+            kwargs,
+        )
+
+    def _do_sync_completion(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[dict[str, Any]] | None,
+        thinking: bool,
+        max_tokens: int,
+        temperature: float,
+        stream: bool,
+        kwargs: dict[str, Any],
+    ) -> MessageWrapper:
+        api_params: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "max_tokens": max_tokens,
@@ -73,105 +103,99 @@ class ZhipuAILLMProvider(LLMProvider):
         api_params.update(kwargs)
         api_params = {k: v for k, v in api_params.items() if v is not None}
 
-        try:
+        logger.info(
+            "ZhipuAI chat_completion: model=%s, messages=%d, stream=%s, thinking=%s, tools=%s",
+            self.model,
+            len(messages),
+            stream,
+            thinking,
+            bool(tools),
+        )
+        client = self._get_client()
+        response = client.chat.completions.create(**api_params)
+
+        if stream:
+            # 流式获取回复：逐 chunk 累积 reasoning_content / content / tool_calls
+            reasoning_content = ""
+            content = ""
+            tool_calls: list[dict[str, Any]] = []
+
+            for chunk in response:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+
+                # 累积深度思考内容
+                reasoning = getattr(delta, "reasoning_content", None)
+                if reasoning:
+                    reasoning_content += reasoning
+
+                # 累积正文内容
+                c = getattr(delta, "content", None)
+                if c:
+                    content += c
+
+                # 收集 tool_calls（分块到达，需要按 index 合并）
+                tcs = getattr(delta, "tool_calls", None)
+                if tcs:
+                    for tc in tcs:
+                        idx = getattr(tc, "index", len(tool_calls))
+                        # 扩展列表到足够容纳当前 index
+                        while len(tool_calls) <= idx:
+                            tool_calls.append(
+                                {
+                                    "id": None,
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""},
+                                }
+                            )
+                        if getattr(tc, "id", None):
+                            tool_calls[idx]["id"] = tc.id
+                        fn = getattr(tc, "function", None)
+                        if fn:
+                            name = getattr(fn, "name", None)
+                            if name and not tool_calls[idx]["function"]["name"]:
+                                tool_calls[idx]["function"]["name"] = name
+                            args = getattr(fn, "arguments", None)
+                            if args:
+                                tool_calls[idx]["function"]["arguments"] += args
+
+            message_data = {
+                "role": "assistant",
+                "content": content,
+                "tool_calls": tool_calls,
+                "reasoning_content": reasoning_content,
+            }
+        else:
+            message = response.choices[0].message
+            message_data = {
+                "role": getattr(message, "role", "assistant"),
+                "content": getattr(message, "content", ""),
+                "tool_calls": list(getattr(message, "tool_calls", None) or []),
+                "reasoning_content": getattr(message, "reasoning_content", None) or "",
+            }
+
+        logger.info(
+            "ZhipuAI response: content_len=%d, tool_calls=%d",
+            len(message_data.get("content") or ""),
+            len(message_data.get("tool_calls") or []),
+        )
+        # Log token usage if available
+        usage = getattr(response, "usage", None)
+        if usage:
             logger.info(
-                "ZhipuAI chat_completion: model=%s, messages=%d, stream=%s, thinking=%s, tools=%s",
-                self.model,
-                len(messages),
-                stream,
-                thinking,
-                bool(tools),
+                "ZhipuAI tokens: prompt=%d, completion=%d, total=%d",
+                getattr(usage, "prompt_tokens", 0),
+                getattr(usage, "completion_tokens", 0),
+                getattr(usage, "total_tokens", 0),
             )
-            client = self._get_client()
-            response = client.chat.completions.create(**api_params)
-
-            if stream:
-                # 流式获取回复：逐 chunk 累积 reasoning_content / content / tool_calls
-                reasoning_content = ""
-                content = ""
-                tool_calls = []
-
-                for chunk in response:
-                    if not chunk.choices:
-                        continue
-                    delta = chunk.choices[0].delta
-
-                    # 累积深度思考内容
-                    reasoning = getattr(delta, "reasoning_content", None)
-                    if reasoning:
-                        reasoning_content += reasoning
-
-                    # 累积正文内容
-                    c = getattr(delta, "content", None)
-                    if c:
-                        content += c
-
-                    # 收集 tool_calls（分块到达，需要按 index 合并）
-                    tcs = getattr(delta, "tool_calls", None)
-                    if tcs:
-                        for tc in tcs:
-                            idx = getattr(tc, "index", len(tool_calls))
-                            # 扩展列表到足够容纳当前 index
-                            while len(tool_calls) <= idx:
-                                tool_calls.append(
-                                    {
-                                        "id": None,
-                                        "type": "function",
-                                        "function": {"name": "", "arguments": ""},
-                                    }
-                                )
-                            if getattr(tc, "id", None):
-                                tool_calls[idx]["id"] = tc.id
-                            fn = getattr(tc, "function", None)
-                            if fn:
-                                if getattr(fn, "name", None):
-                                    tool_calls[idx]["function"]["name"] += fn.name
-                                if getattr(fn, "arguments", None):
-                                    tool_calls[idx]["function"]["arguments"] += fn.arguments
-
-                message_data = {
-                    "role": "assistant",
-                    "content": content,
-                    "tool_calls": tool_calls,
-                    "reasoning_content": reasoning_content,
-                }
-            else:
-                message = response.choices[0].message
-                message_data = {
-                    "role": getattr(message, "role", "assistant"),
-                    "content": getattr(message, "content", ""),
-                    "tool_calls": list(getattr(message, "tool_calls", None) or []),
-                }
-            logger.info(
-                "ZhipuAI response: content_len=%d, tool_calls=%d",
-                len(message_data.get("content") or ""),
-                len(message_data.get("tool_calls") or []),
-            )
-            # Log token usage if available
-            usage = getattr(response, "usage", None)
-            if usage:
-                logger.info(
-                    "ZhipuAI tokens: prompt=%d, completion=%d, total=%d",
-                    getattr(usage, "prompt_tokens", 0),
-                    getattr(usage, "completion_tokens", 0),
-                    getattr(usage, "total_tokens", 0),
-                )
-            return MessageWrapper(message_data)
-        except Exception as e:
-            logger.error("ZhipuAI API error: %s", e, exc_info=True)
-            return MessageWrapper(
-                {
-                    "role": "assistant",
-                    "content": f"Error calling Zhipu AI API: {e}",
-                    "tool_calls": [],
-                }
-            )
+        return MessageWrapper(message_data)
 
 
 if __name__ == "__main__":
-    from src.config import settings
+    from config import settings
 
-    zp = ZhipuAILLMProvider(settings.ZHIPU_API_KEY)
+    zp = ZhipuAILLMProvider(settings.ZHIPU_API_KEY, settings.ZHIPU_MODEL)
     message = [
         {"role": "user", "content": "作为一名营销专家，请为我的产品创作一个吸引人的口号"},
         {
@@ -180,5 +204,5 @@ if __name__ == "__main__":
         },
         {"role": "user", "content": "智谱开放平台"},
     ]
-    res = zp.chat_completion(message, stream=True)
+    res = asyncio.run(zp.chat_completion(message, stream=True))
     print(res)

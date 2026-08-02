@@ -1,5 +1,6 @@
 """Unit tests for ContextPipeline orchestrator."""
 
+import asyncio
 import json
 import unittest
 
@@ -95,7 +96,7 @@ class TestCompactCascade(unittest.TestCase):
         for i in range(4):
             msgs.append({"role": "user", "content": f"q_{i}"})
 
-        result = pipeline.compact(msgs)
+        result = asyncio.run(pipeline.compact(msgs))
         self.assertLess(len(result), len(msgs))
         self.assertEqual(pipeline.stats["meso_compressions"], 1)
         self.assertEqual(pipeline.stats["macro_compressions"], 0)
@@ -121,7 +122,7 @@ class TestCompactCascade(unittest.TestCase):
         for i in range(4):
             msgs.append({"role": "user", "content": f"q_{i}"})
 
-        result = pipeline.compact(msgs)
+        result = asyncio.run(pipeline.compact(msgs))
         # The tool message should have been compressed
         tool_msgs = [m for m in result if m.get("role") == "tool"]
         if tool_msgs:

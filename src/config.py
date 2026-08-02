@@ -67,6 +67,10 @@ class Settings:
     # ---- Agent behaviour ----
     MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "4096"))
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openai").lower()
+    # Transient API errors (timeout / connection / 429 / 5xx) are retried up to
+    # this many times with exponential backoff. Auth/bad-request errors are not
+    # retried.
+    LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
     MAX_TOOL_OUTPUT: int = int(os.getenv("MAX_TOOL_OUTPUT", "8000"))
     CONTEXT_MAX_MESSAGES: int = int(os.getenv("CONTEXT_MAX_MESSAGES", "40"))
     CONTEXT_KEEP_RECENT: int = int(os.getenv("CONTEXT_KEEP_RECENT", "12"))

@@ -16,7 +16,6 @@ async def async_chat(
     provider: str | None = None,
     model: str | None = None,
     sandbox: str | None = None,
-    max_tokens: int | None = None,
 ) -> None:
     """Start an interactive chat session.
 
@@ -24,7 +23,6 @@ async def async_chat(
         provider: LLM provider name (overrides env).
         model: Model name (overrides env).
         sandbox: Sandbox root directory.
-        max_tokens: Max output tokens.
     """
     # Resolve provider type
     provider_name = provider or settings.LLM_PROVIDER

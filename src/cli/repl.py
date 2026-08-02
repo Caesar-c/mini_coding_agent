@@ -198,7 +198,7 @@ async def _handle_slash_command(
         if agent:
             before = len(agent.messages)
             logger.info("Manual /compact triggered: %d messages", before)
-            agent.messages = await asyncio.to_thread(agent.context_pipeline.compact, agent.messages)
+            agent.messages = await agent.context_pipeline.compact(agent.messages)
             after = len(agent.messages)
             stats = agent.context_pipeline.stats
             logger.info(

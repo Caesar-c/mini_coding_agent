@@ -16,6 +16,30 @@ from skills import LOAD_SKILL_TOOL_DEFINITION, build_system_prompt, make_load_sk
 
 logger = get_logger(__name__)
 
+
+def _is_transient_error(exc: BaseException) -> bool:
+    """Return True for API errors worth retrying (timeout/connection/rate-limit).
+
+    Auth, bad-request and other non-transient errors propagate immediately.
+    """
+    # OpenAI SDK v1.x error hierarchy — referenced via attribute access so the
+    # import does not hard-depend on a specific SDK being installed.
+    name = type(exc).__name__
+    transient_names = {
+        "APITimeoutError",
+        "APIConnectionError",
+        "RateLimitError",
+        "APIStatusError",  # 5xx — transient; 4xx filtered below by status
+    }
+    if name not in transient_names:
+        return False
+    status = getattr(exc, "status_code", None)
+    # 429 (rate limit) and 5xx are retryable; other 4xx are not.
+    if status is not None and 400 <= status < 500 and status != 429:
+        return False
+    return True
+
+
 SYSTEM_PROMPT = """\
 You are a helpful coding assistant. You can execute bash commands and use various \
 file operation tools to accomplish tasks. Use the appropriate tools for file operations. \
@@ -133,21 +157,43 @@ class AsyncAgent:
         return _wrapper
 
     async def _call_llm(self):
-        """Call LLM provider API in a worker thread and return the assistant message."""
+        """Call the LLM provider API and return the assistant message.
+
+        The provider is async (``AsyncOpenAI`` for OpenAI; ``asyncio.to_thread``
+        bridge for Zhipu). Transient API errors (timeout / connection /
+        rate-limit) are retried with exponential backoff — up to
+        ``LLM_MAX_RETRIES`` attempts. Non-transient errors (auth, bad request)
+        propagate immediately. Errors are never swallowed into a fake assistant
+        message.
+        """
         logger.info("LLM call start: messages=%d", len(self.messages))
         self.display.on_llm_start()
         t0 = time.monotonic()
+        max_attempts = max(1, settings.LLM_MAX_RETRIES)
         try:
-            response = await asyncio.to_thread(
-                self.llm_provider.chat_completion,
-                messages=self.messages,
-                tools=self.tool_registry.definitions,
-            )
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return await self.llm_provider.chat_completion(
+                        messages=self.messages,
+                        tools=self.tool_registry.definitions,
+                        max_tokens=settings.MAX_TOKENS,
+                    )
+                except Exception as e:
+                    if attempt >= max_attempts or not _is_transient_error(e):
+                        raise
+                    backoff = 2 ** (attempt - 1)  # 1s, 2s, 4s ...
+                    logger.warning(
+                        "LLM transient error (attempt %d/%d): %s — retrying in %ds",
+                        attempt,
+                        max_attempts,
+                        e,
+                        backoff,
+                    )
+                    await asyncio.sleep(backoff)
         finally:
             elapsed = time.monotonic() - t0
             logger.info("LLM call end: %.2fs", elapsed)
             self.display.on_llm_end()
-        return response
 
     def _inject_progress(self):
         """Remove old progress summary and inject current one as a system message."""
@@ -208,10 +254,10 @@ class AsyncAgent:
             # Context compaction
             if self.context_pipeline.should_compact(self.messages):
                 before = len(self.messages)
-                # compact() may call LLM (Layer 3), so offload to worker thread
-                self.messages = await asyncio.to_thread(
-                    self.context_pipeline.compact, self.messages
-                )
+                # compact() may call LLM (Layer 3) via the async provider; await
+                # it directly on this event loop (AsyncOpenAI's httpx client is
+                # loop-bound to the main loop).
+                self.messages = await self.context_pipeline.compact(self.messages)
                 logger.info("Context compacted: %d -> %d messages", before, len(self.messages))
 
             message = await self._call_llm()

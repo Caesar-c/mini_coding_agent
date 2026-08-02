@@ -2,7 +2,7 @@
 
 import asyncio
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 def _make_mock_response(content="", tool_calls=None, has_model_dump=False):
@@ -46,7 +46,7 @@ class TestSubagentReturnsSummary(unittest.TestCase):
         from agent.async_tool_registry import AsyncToolRegistry
         from agent.subagent import SUBAGENT_SYSTEM_PROMPT, run_subagent
 
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mock_provider.chat_completion.return_value = _make_mock_response(
             content="Project uses pytest."
         )
@@ -77,7 +77,7 @@ class TestSubagentContextIsolation(unittest.TestCase):
 
         tc = _make_tool_call()
 
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         # First call: returns tool_call, second call: returns final text
         mock_provider.chat_completion.side_effect = [
             _make_mock_response(content="", tool_calls=[tc]),
@@ -135,7 +135,7 @@ class TestSubagentIterationLimit(unittest.TestCase):
 
         tc = _make_tool_call()
 
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         # Always return a tool call — subagent never finishes naturally
         mock_provider.chat_completion.return_value = _make_mock_response(
             content="", tool_calls=[tc]
@@ -174,7 +174,7 @@ class TestSubagentOutputTruncation(unittest.TestCase):
         from agent.subagent import SUBAGENT_SYSTEM_PROMPT, run_subagent
 
         long_text = "A" * 5000
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mock_provider.chat_completion.return_value = _make_mock_response(content=long_text)
 
         registry = AsyncToolRegistry()
@@ -285,7 +285,7 @@ class TestSubagentExecutesTools(unittest.TestCase):
 
         tc = _make_tool_call(name="bash", arguments='{"command": "echo hello"}', tc_id="tc_42")
 
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         # First response: tool call; second response: final summary
         mock_provider.chat_completion.side_effect = [
             _make_mock_response(content="", tool_calls=[tc]),

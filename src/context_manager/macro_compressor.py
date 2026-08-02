@@ -63,7 +63,7 @@ class MacroCompressor:
         total_tokens = sum(estimate_tokens(m.get("content") or "") for m in messages)
         return total_tokens >= self.token_threshold
 
-    def compress(self, messages: list[dict]) -> list[dict]:
+    async def compress(self, messages: list[dict]) -> list[dict]:
         """Rebuild conversation into structured summary + recent window.
 
         Returns:
@@ -91,7 +91,7 @@ class MacroCompressor:
 
         # Call LLM
         try:
-            summary = self._generate_summary(history_text, progress_context)
+            summary = await self._generate_summary(history_text, progress_context)
         except Exception as e:
             logger.error("Macro compression LLM call failed: %s", e)
             # Fallback: system + first_user + recent
@@ -170,14 +170,14 @@ class MacroCompressor:
 
         return "\n".join(parts)
 
-    def _generate_summary(self, history_text: str, progress_context: str) -> str:
+    async def _generate_summary(self, history_text: str, progress_context: str) -> str:
         """Call the LLM to generate a structured conversation summary."""
         prompt_messages = [
             {"role": "system", "content": MACRO_SUMMARY_PROMPT},
             {"role": "user", "content": history_text + progress_context},
         ]
 
-        response = self.llm_provider.chat_completion(
+        response = await self.llm_provider.chat_completion(
             messages=prompt_messages,
             tools=None,
             max_tokens=4096,

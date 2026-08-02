@@ -47,7 +47,7 @@ class MesoCompressor:
         middle_tokens = sum(estimate_tokens(m.get("content") or "") for m in middle)
         return middle_tokens >= self.meso_token_threshold
 
-    def compress(self, messages: list[dict]) -> list[dict]:
+    async def compress(self, messages: list[dict]) -> list[dict]:
         """Compress middle section's tool exchanges into summaries.
 
         Returns: head[0:2] + compressed_middle + tail[-keep_recent:]
@@ -73,7 +73,7 @@ class MesoCompressor:
         compressed_middle: list[dict] = []
         for group in groups:
             if group["type"] == "tool_exchange":
-                summary = self._summarize_group(group["messages"])
+                summary = await self._summarize_group(group["messages"])
                 if summary:
                     compressed_middle.append(
                         {"role": "assistant", "content": f"[SUMMARY] {summary}"}
@@ -133,11 +133,11 @@ class MesoCompressor:
 
         return groups
 
-    def _summarize_group(self, messages: list[dict]) -> str:
+    async def _summarize_group(self, messages: list[dict]) -> str:
         """Summarize a group of tool exchange messages."""
         if self.use_llm and self.llm_provider:
             try:
-                return self._llm_summarize(messages)
+                return await self._llm_summarize(messages)
             except Exception as e:
                 logger.warning("LLM summarization failed, falling back to rule-based: %s", e)
         return self._rule_based_summarize(messages)
@@ -227,7 +227,7 @@ class MesoCompressor:
             return first_line[:77] + "..."
         return first_line
 
-    def _llm_summarize(self, messages: list[dict]) -> str:
+    async def _llm_summarize(self, messages: list[dict]) -> str:
         """Use LLM to generate a natural summary of tool exchanges."""
         condensed: list[str] = []
         for msg in messages:
@@ -261,7 +261,7 @@ class MesoCompressor:
             {"role": "user", "content": "\n".join(condensed)},
         ]
 
-        response = self.llm_provider.chat_completion(
+        response = await self.llm_provider.chat_completion(
             messages=prompt_messages,
             tools=None,
             max_tokens=256,

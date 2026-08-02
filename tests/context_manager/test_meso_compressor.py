@@ -1,8 +1,9 @@
 """Unit tests for Layer 2: MesoCompressor."""
 
+import asyncio
 import json
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 
 from context_manager.meso_compressor import MesoCompressor
 
@@ -197,7 +198,7 @@ class TestCompress(unittest.TestCase):
         for i in range(4):
             msgs.append({"role": "user", "content": f"recent_{i}"})
 
-        result = mc.compress(msgs)
+        result = asyncio.run(mc.compress(msgs))
         self.assertEqual(result[0]["content"], "SYSTEM PROMPT")
         self.assertEqual(result[1]["content"], "ORIGINAL TASK")
         # Tail preserved
@@ -216,7 +217,7 @@ class TestCompress(unittest.TestCase):
         for i in range(4):
             msgs.append({"role": "user", "content": f"q_{i}"})
 
-        result = mc.compress(msgs)
+        result = asyncio.run(mc.compress(msgs))
         self.assertLess(len(result), len(msgs))
 
     def test_summary_has_prefix(self):
@@ -230,7 +231,7 @@ class TestCompress(unittest.TestCase):
         for i in range(4):
             msgs.append({"role": "user", "content": f"q_{i}"})
 
-        result = mc.compress(msgs)
+        result = asyncio.run(mc.compress(msgs))
         summaries = [m for m in result if m.get("content", "").startswith("[SUMMARY]")]
         self.assertGreater(len(summaries), 0)
 
@@ -241,14 +242,14 @@ class TestCompress(unittest.TestCase):
             {"role": "user", "content": "task"},
             {"role": "assistant", "content": "answer"},
         ]
-        result = mc.compress(msgs)
+        result = asyncio.run(mc.compress(msgs))
         self.assertEqual(result, msgs)
 
 
 class TestLLMSummarize(unittest.TestCase):
     def test_llm_fallback_on_error(self):
         """When LLM fails, rule-based summarization is used as fallback."""
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mock_provider.chat_completion.side_effect = RuntimeError("API error")
 
         mc = MesoCompressor(
@@ -259,7 +260,7 @@ class TestLLMSummarize(unittest.TestCase):
         )
         msgs = _make_tool_exchange("bash", {"command": "ls"}, "file1\nfile2")
         # Should not raise, should fallback to rule-based
-        summary = mc._summarize_group(msgs)
+        summary = asyncio.run(mc._summarize_group(msgs))
         self.assertIn("ran `ls`", summary)
 
 

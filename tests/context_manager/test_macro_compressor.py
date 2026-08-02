@@ -1,7 +1,8 @@
 """Unit tests for Layer 3: MacroCompressor."""
 
+import asyncio
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from context_manager.macro_compressor import MacroCompressor
 from context_manager.task_graph import TaskGraphManager
@@ -34,7 +35,7 @@ def _make_messages(n_middle=30, keep_recent=12):
             msgs.append(
                 {
                     "role": "tool",
-                    "tool_call_id": f"tc_{i-1}",
+                    "tool_call_id": f"tc_{i - 1}",
                     "content": "x" * 2000,
                 }
             )
@@ -54,7 +55,7 @@ class TestShouldCompress(unittest.TestCase):
         self.assertFalse(mc.should_compress(msgs))
 
     def test_below_threshold_returns_false(self):
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mc = MacroCompressor(token_threshold=999999, llm_provider=mock_provider)
         msgs = [
             {"role": "system", "content": "sys"},
@@ -63,7 +64,7 @@ class TestShouldCompress(unittest.TestCase):
         self.assertFalse(mc.should_compress(msgs))
 
     def test_above_threshold_returns_true(self):
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mc = MacroCompressor(token_threshold=10, llm_provider=mock_provider)
         msgs = [
             {"role": "system", "content": "x" * 100},
@@ -117,7 +118,7 @@ class TestBuildHistoryDigest(unittest.TestCase):
 
 class TestCompress(unittest.TestCase):
     def test_with_mock_llm(self):
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mock_response = MagicMock()
         mock_response.content = "[CONTEXT SUMMARY]\n## Completed Work\nRefactored auth."
         mock_response.tool_calls = []
@@ -129,7 +130,7 @@ class TestCompress(unittest.TestCase):
             llm_provider=mock_provider,
         )
         msgs = _make_messages(n_middle=20, keep_recent=4)
-        result = mc.compress(msgs)
+        result = asyncio.run(mc.compress(msgs))
 
         # System prompt preserved
         self.assertEqual(result[0]["role"], "system")
@@ -143,17 +144,17 @@ class TestCompress(unittest.TestCase):
         self.assertEqual(len(tail), 4)
 
     def test_short_conversation_noop(self):
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mc = MacroCompressor(token_threshold=10, keep_recent=4, llm_provider=mock_provider)
         msgs = [
             {"role": "system", "content": "sys"},
             {"role": "user", "content": "task"},
         ]
-        result = mc.compress(msgs)
+        result = asyncio.run(mc.compress(msgs))
         self.assertEqual(result, msgs)
 
     def test_llm_failure_fallback(self):
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mock_provider.chat_completion.side_effect = RuntimeError("API down")
 
         mc = MacroCompressor(
@@ -162,7 +163,7 @@ class TestCompress(unittest.TestCase):
             llm_provider=mock_provider,
         )
         msgs = _make_messages(n_middle=20, keep_recent=4)
-        result = mc.compress(msgs)
+        result = asyncio.run(mc.compress(msgs))
 
         # Fallback: system + first_user + recent
         self.assertEqual(result[0]["role"], "system")
@@ -170,7 +171,7 @@ class TestCompress(unittest.TestCase):
         self.assertEqual(len(result[-4:]), 4)
 
     def test_task_graph_integration(self):
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mock_response = MagicMock()
         mock_response.content = "[CONTEXT SUMMARY]\n## Completed Work\nDone."
         mock_response.tool_calls = []
@@ -197,7 +198,7 @@ class TestCompress(unittest.TestCase):
             task_graph=graph,
         )
         msgs = _make_messages(n_middle=20, keep_recent=4)
-        result = mc.compress(msgs)
+        result = asyncio.run(mc.compress(msgs))
 
         # Progress summary should be injected
         progress_msgs = [m for m in result if m.get("content", "").startswith("[TASK PROGRESS]")]
@@ -208,7 +209,7 @@ class TestCompress(unittest.TestCase):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
     def test_summary_prefix_auto_added(self):
-        mock_provider = MagicMock()
+        mock_provider = AsyncMock()
         mock_response = MagicMock()
         mock_response.content = "## Completed Work\nSomething done."
         mock_response.tool_calls = []
@@ -216,7 +217,7 @@ class TestCompress(unittest.TestCase):
 
         mc = MacroCompressor(token_threshold=10, keep_recent=4, llm_provider=mock_provider)
         msgs = _make_messages(n_middle=20, keep_recent=4)
-        result = mc.compress(msgs)
+        result = asyncio.run(mc.compress(msgs))
         self.assertIn("[CONTEXT SUMMARY]", result[1]["content"])
 
 

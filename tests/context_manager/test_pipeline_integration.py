@@ -4,6 +4,7 @@ Builds realistic conversations and verifies the full three-layer
 compression pipeline reduces message count while preserving critical context.
 """
 
+import asyncio
 import json
 import unittest
 
@@ -177,7 +178,7 @@ class TestPipelineIntegration(unittest.TestCase):
         self.assertGreater(len(msgs), 50)
 
         self.assertTrue(pipeline.should_compact(msgs))
-        result = pipeline.compact(msgs)
+        result = asyncio.run(pipeline.compact(msgs))
 
         # Significantly reduced
         self.assertLess(len(result), 25)
@@ -227,7 +228,7 @@ class TestPipelineIntegration(unittest.TestCase):
         )
 
         msgs = _make_realistic_conversation(keep_recent=12)
-        result = pipeline.compact(msgs)
+        result = asyncio.run(pipeline.compact(msgs))
 
         # Pipeline should still work normally
         self.assertLess(len(result), len(msgs))
@@ -247,7 +248,7 @@ class TestPipelineIntegration(unittest.TestCase):
         )
 
         msgs = _make_realistic_conversation(keep_recent=12)
-        result = pipeline.compact(msgs)
+        result = asyncio.run(pipeline.compact(msgs))
 
         # Layer 1 + 2 still reduce messages
         self.assertLess(len(result), len(msgs))
@@ -267,7 +268,7 @@ class TestPipelineIntegration(unittest.TestCase):
             {"role": "assistant", "content": "hi there"},
         ]
         self.assertFalse(pipeline.should_compact(msgs))
-        result = pipeline.compact(msgs)
+        result = asyncio.run(pipeline.compact(msgs))
         self.assertEqual(result, msgs)
 
 

@@ -13,30 +13,34 @@ class LLMProvider(ABC):
     """
 
     @abstractmethod
-    def chat_completion(
+    async def chat_completion(
         self,
         messages: list[dict[str, str]],
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
         **kwargs,
-    ) -> Any:
-        """Generate a chat completion.
+    ) -> "MessageWrapper":
+        """Generate a chat completion asynchronously.
 
         Args:
             messages: List of message dictionaries with ``role`` and ``content``.
             tools: Optional list of tool definitions (OpenAI function-calling
                 schema). Providers that do not support tools may ignore this.
-            model: Model identifier.
             max_tokens: Maximum number of tokens to generate.
             temperature: Sampling temperature.
             **kwargs: Additional provider-specific parameters.
 
         Returns:
-            A response object (or :class:`MessageWrapper`) exposing at least
-            ``content``, ``role`` and ``tool_calls`` attributes.
+            A :class:`MessageWrapper` exposing at least ``content``, ``role``,
+            ``tool_calls`` and (optionally) ``reasoning_content`` attributes.
+
+        Raises:
+            Provider API exceptions on failure — callers are responsible for
+            retry / fallback. Implementations must NOT swallow errors into a
+            fake assistant message.
         """
-        pass
+        ...
 
 
 class MessageWrapper:

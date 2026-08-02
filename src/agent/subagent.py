@@ -5,7 +5,6 @@ runs in its own messages list, executes child tools (bash, file ops), and
 returns only a text summary. All intermediate messages are discarded.
 """
 
-import asyncio
 from collections.abc import Callable
 
 from agent.async_tool_registry import AsyncToolRegistry
@@ -92,10 +91,10 @@ async def run_subagent(
 
     last_text = ""
     for iteration in range(1, max_iterations + 1):
-        response = await asyncio.to_thread(
-            llm_provider.chat_completion,
+        response = await llm_provider.chat_completion(
             messages=messages,
             tools=child_tools,
+            max_tokens=settings.MAX_TOKENS,
         )
 
         # Extract tool_calls first so we know whether to append the message.

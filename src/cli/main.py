@@ -24,13 +24,12 @@ def chat(
     ),
     model: str | None = typer.Option("glm-4.7-flash", "--model", "-m", help="Model name override"),
     sandbox: str | None = typer.Option(None, "--sandbox", "-s", help="Sandbox root directory"),
-    max_tokens: int | None = typer.Option(8192, "--max-tokens", help="Max output tokens"),
 ) -> None:
     """Start an interactive chat session with the coding agent."""
     from cli.commands.chat import async_chat
 
     logger.info("Starting chat: provider=%s, model=%s, sandbox=%s", provider, model, sandbox)
-    asyncio.run(async_chat(provider=provider, model=model, sandbox=sandbox, max_tokens=max_tokens))
+    asyncio.run(async_chat(provider=provider, model=model, sandbox=sandbox))
 
 
 @app.command()
